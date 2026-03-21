@@ -1,0 +1,43 @@
+-- Todo list with file storage in Cream
+
+action load_todos()
+    if file("todos.json", "exists")
+        return file("todos.json", "json")
+    return []
+
+action save_todos(todos)
+    file("todos.json", "json", todos)
+
+action add_todo(todos, text)
+    item = { text: text, done: no }
+    return list(todos, "add", item)
+
+action complete_todo(todos, index)
+    todos[index].done = yes
+    return todos
+
+action show_todos(todos)
+    if length(todos) == 0
+        say "No todos yet!"
+        return empty
+    for each i in range(0, length(todos))
+        item = todos[i]
+        status = "[ ]"
+        if item.done == yes
+            status = "[x]"
+        say "{status} {i}. {item.text}"
+
+-- Demo
+todos = load_todos()
+
+todos = add_todo(todos, "Learn Cream")
+todos = add_todo(todos, "Build something cool")
+todos = add_todo(todos, "Push to GitHub")
+todos = add_todo(todos, "Share with the world")
+
+say "=== My Todo List ==="
+show_todos(todos)
+
+save_todos(todos)
+say ""
+say "Saved {length(todos)} todos to todos.json"

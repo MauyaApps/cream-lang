@@ -1,0 +1,33 @@
+-- Simple calculator in Cream
+
+action calculate(a, op, b)
+    if op == "+"
+        return a + b
+    or if op == "-"
+        return a - b
+    or if op == "*"
+        return a * b
+    or if op == "/"
+        if b == 0
+            return "Error: division by zero"
+        return a / b
+    or if op == "%"
+        return a % b
+    or if op == "pow"
+        return math(a, "pow", b)
+    return "Unknown operator"
+
+say "=== Cream Calculator ==="
+say calculate(10, "+",   5)     -- 15
+say calculate(10, "-",   3)     -- 7
+say calculate(10, "*",   4)     -- 40
+say calculate(10, "/",   4)     -- 2.5
+say calculate(10, "%",   3)     -- 1
+say calculate(2,  "pow", 8)     -- 256.0
+say calculate(5,  "/",   0)     -- Error: division by zero
+
+say "=== Math extras ==="
+say math(144, "sqrt")           -- 12.0
+say math(7,   "prime")          -- yes
+say math(6,   "factorial")      -- 720
+say convert(100, "km", "miles") -- 62.1371

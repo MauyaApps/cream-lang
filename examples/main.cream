@@ -1,0 +1,28 @@
+-- main.cream
+-- Пример использования import
+
+import "utils.cream"
+
+say "=== Math from utils ==="
+say add(10, 5)
+say subtract(10, 3)
+say multiply(4, 6)
+say divide(10, 4)
+say divide(5, 0)
+
+say "=== Clamp ==="
+say clamp(15, 0, 10)
+say clamp(-5, 0, 10)
+say clamp(5,  0, 10)
+
+say "=== Number checks ==="
+say is_even(4)
+say is_odd(7)
+
+say "=== Sequences ==="
+say factorial(6)
+say fib(10)
+
+say "=== Strings ==="
+say repeat_text("Cream! ", 3)
+say greet("Alice", "Hello")

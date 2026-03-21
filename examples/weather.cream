@@ -1,0 +1,44 @@
+-- Fetch weather from open API in Cream
+-- Uses open-meteo.com — free, no API key needed
+
+action get_weather(lat, lon)
+    url = "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+    try
+        data = net(url, "json")
+        return data.current_weather
+    on error e
+        say "Network error: {e.message}"
+        return empty
+
+action describe_weather(code)
+    if code == 0
+        return "Clear sky"
+    or if code <= 3
+        return "Partly cloudy"
+    or if code <= 48
+        return "Foggy"
+    or if code <= 67
+        return "Rainy"
+    or if code <= 77
+        return "Snowy"
+    or if code <= 82
+        return "Showers"
+    return "Stormy"
+
+say "=== Cream Weather ==="
+
+-- Moscow coordinates
+weather = get_weather(55.75, 37.62)
+
+if weather != empty
+    temp = weather.temperature
+    wind = weather.windspeed
+    code = weather.weathercode
+    desc = describe_weather(code)
+
+    say "Location:    Moscow"
+    say "Temperature: {temp}°C"
+    say "Wind speed:  {wind} km/h"
+    say "Conditions:  {desc}"
+else
+    say "Could not fetch weather data."

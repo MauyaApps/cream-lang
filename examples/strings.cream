@@ -1,0 +1,44 @@
+-- String manipulation examples in Cream
+
+say "=== Basic Operations ==="
+msg = "  Hello, Cream World!  "
+say str_(msg, "trim")
+say str_(msg, "trim", "upper")
+say str_(msg, "lower")
+say str_(msg, "title")
+
+say ""
+say "=== Analysis ==="
+text = "The quick brown fox jumps over the lazy dog"
+say "Words:    {text_(text, "words")}"
+say "Length:   {str_(text, "length")}"
+say "Contains fox: {str_(text, "contains", "fox")}"
+say "Starts with The: {str_(text, "starts", "The")}"
+
+say ""
+say "=== Transformation ==="
+say str_("hello", "repeat", 4)
+say str_("racecar", "reverse")
+say str_("hello world", "replace", "world", "Cream")
+say text_("Hello World", "slug")
+
+say ""
+say "=== Extraction ==="
+email_text = "Contact us at support@cream-lang.org or hello@example.com"
+emails = text_(email_text, "extract", "emails")
+say "Found emails:"
+for each e in emails
+    say "  {e}"
+
+say ""
+say "=== Palindrome check ==="
+words = ["racecar", "hello", "level", "world", "madam"]
+for each w in words
+    result = text_(w, "palindrome")
+    say "{w}: {result}"
+
+say ""
+say "=== Similarity ==="
+say text_("cream", "similarity", "dream")
+say text_("hello", "similarity", "hello")
+say text_("abc",   "similarity", "xyz")

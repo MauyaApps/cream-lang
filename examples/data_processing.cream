@@ -1,0 +1,69 @@
+-- Data processing example in Cream
+
+say "=== Student Grades ==="
+
+struct Student
+    name:  text
+    grade: number
+
+students = [
+    Student("Alice",   92),
+    Student("Bob",     78),
+    Student("Charlie", 95),
+    Student("Diana",   88),
+    Student("Eve",     61),
+    Student("Frank",   74),
+    Student("Grace",   99),
+]
+
+-- Show all students
+for each s in students
+    say "{s.name}: {s.grade}"
+
+say ""
+
+-- Get all grades
+grades = students
+    | map(s → s.grade)
+
+say "=== Statistics ==="
+say "Mean:   {stats(grades, "mean")}"
+say "Median: {stats(grades, "median")}"
+say "Max:    {stats(grades, "max")}"
+say "Min:    {stats(grades, "min")}"
+say "Std:    {math(stats(grades, "std"), "round", 2)}"
+
+say ""
+say "=== Passed (>= 70) ==="
+passed = students
+    | filter(s → s.grade >= 70)
+    | map(s → s.name)
+
+for each name in passed
+    say "  ✓ {name}"
+
+say ""
+say "=== Failed (< 70) ==="
+failed = students
+    | filter(s → s.grade < 70)
+    | map(s → s.name)
+
+for each name in failed
+    say "  ✗ {name}"
+
+say ""
+say "=== Grade Distribution ==="
+action grade_letter(g)
+    if g >= 90
+        return "A"
+    or if g >= 80
+        return "B"
+    or if g >= 70
+        return "C"
+    or if g >= 60
+        return "D"
+    return "F"
+
+for each s in students
+    letter = grade_letter(s.grade)
+    say "{s.name}: {letter}"

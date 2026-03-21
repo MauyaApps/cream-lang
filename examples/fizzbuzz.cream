@@ -1,0 +1,11 @@
+-- FizzBuzz in Cream
+
+for each n in range(1, 101)
+    if n % 15 == 0
+        say "FizzBuzz"
+    or if n % 3 == 0
+        say "Fizz"
+    or if n % 5 == 0
+        say "Buzz"
+    else
+        say n

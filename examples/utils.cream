@@ -1,0 +1,47 @@
+-- utils.cream
+-- Вспомогательные функции — подключай через: import "utils.cream"
+
+action add(a, b)
+    return a + b
+
+action subtract(a, b)
+    return a - b
+
+action multiply(a, b)
+    return a * b
+
+action divide(a, b)
+    if b == 0
+        return "Error: division by zero"
+    return a / b
+
+action clamp(value, min_val, max_val)
+    if value < min_val
+        return min_val
+    or if value > max_val
+        return max_val
+    return value
+
+action is_even(n)
+    return n % 2 == 0
+
+action is_odd(n)
+    return n % 2 != 0
+
+action factorial(n)
+    if n <= 1
+        return 1
+    return n * factorial(n - 1)
+
+action fib(n)
+    if n <= 1
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+action repeat_text(text, n)
+    return str_(text, "repeat", n)
+
+action greet(name, greeting)
+    return "{greeting}, {name}!"
+
+say "-- utils.cream loaded"
