@@ -1,0 +1,34 @@
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+.eggs/
+
+# VS Code extension
+vscode-extension/node_modules/
+vscode-extension/*.vsix
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temp files
+*.tmp
+*.temp
+*.swp
+
+# Cream runtime files
+todos.json
+*.cream.out
