@@ -1,0 +1,57 @@
+{
+  "name": "cream-language",
+  "displayName": "Cream Language",
+  "description": "Syntax highlighting and language support for the Cream programming language",
+  "version": "0.1.0",
+  "publisher": "MauyaApps",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "cream",
+    "programming language",
+    "syntax highlighting"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mauyaapps/cream"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "cream",
+        "aliases": [
+          "Cream",
+          "cream"
+        ],
+        "extensions": [
+          ".cream"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "cream",
+        "scopeName": "source.cream",
+        "path": "./syntaxes/cream.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "cream",
+        "path": "./snippets/cream.json"
+      }
+    ],
+    "themes": []
+  },
+  "scripts": {
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^2.22.0"
+  }
+}
