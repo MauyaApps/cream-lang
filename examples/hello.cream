@@ -1,0 +1,4 @@
+-- Hello World in Cream
+name = "World"
+say "Hello, {name}!"
+say "Welcome to Cream programming language."
