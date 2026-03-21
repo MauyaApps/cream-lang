@@ -24,12 +24,12 @@ say "Result: {result}"
 ### 🪟 Windows
 
 1. Go to [Releases](../../releases/latest)
-2. Download `cream-windows.exe`
+2. Download `cream.exe`
 3. Open terminal in the same folder
 4. Run your `.cream` file:
 
 ```
-cream hello.cream
+cream.exe hello.cream
 ```
 
 No Python or anything else required.
@@ -38,36 +38,17 @@ No Python or anything else required.
 
 ### 🐧 Linux
 
-1. Go to [Releases](../../releases/latest)
-2. Download `cream-linux`
-3. Make it executable and run:
+> 🚧 Coming soon — Linux build is in development.
 
-```bash
-chmod +x cream-linux
-./cream-linux hello.cream
-```
-
-Or move it to PATH for global use:
-
-```bash
-sudo mv cream-linux /usr/local/bin/cream
-cream hello.cream
-```
+For now use the Python version below.
 
 ---
 
 ### 🍎 macOS
 
-1. Go to [Releases](../../releases/latest)
-2. Download `cream-macos`
-3. Make it executable and run:
+> 🚧 Coming soon — macOS build is in development.
 
-```bash
-chmod +x cream-macos
-./cream-macos hello.cream
-```
-
-If macOS blocks it — go to System Settings → Privacy → allow it.
+For now use the Python version below.
 
 ---
 
@@ -77,8 +58,8 @@ If you have Python 3.8+ installed:
 
 ```bash
 # Clone or download cream.py
-git clone https://github.com/yourusername/cream.git
-cd cream
+git clone https://github.com/MauyaApps/cream-lang.git
+cd cream-lang
 
 # Run a file
 python cream.py hello.cream
@@ -93,22 +74,39 @@ python cream.py
 
 1. Download `cream.py` from this repo
 2. Create your `.cream` file in the same folder
-3. Add this line at the very top of `cream.py`:
-   ```python
-   # Add after imports, before the test:
-   ```
-4. Or use this tiny launcher — create `run.py`:
+3. Create `run.py`:
    ```python
    from cream import Interpreter
    Interpreter().run(open("hello.cream").read())
    ```
-5. Run `run.py` in Pydroid
+4. Run `run.py` in Pydroid
 
 ---
 
 ### 🌐 Browser (no install)
 
 Open `docs/cream-lang.html` in any browser — write and run Cream code directly, no installation needed.
+
+---
+
+## VS Code Extension
+
+Install **Cream Language** syntax highlighting directly in VS Code:
+
+1. Open VS Code
+2. Press `Ctrl+Shift+X`
+3. Search **Cream Language** by MauyaApps
+4. Click Install
+
+Or install directly:
+
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Cream%20Language-blue?logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=MauyaApps.cream-language)
+
+Features:
+- ✅ Syntax highlighting for `.cream` files
+- ✅ Code snippets (`if`, `action`, `repeat`, `pipe`...)
+- ✅ Auto-closing brackets and quotes
+- ✅ Comment toggling with `--`
 
 ---
 
@@ -133,7 +131,7 @@ say "Sum of evens: {result}"
 Run it:
 
 ```bash
-cream hello.cream
+cream.exe hello.cream
 # or
 python cream.py hello.cream
 ```
@@ -250,9 +248,10 @@ cream/
 ├── cream.py               -- The entire language (one file)
 ├── README.md
 ├── LICENSE
+├── CHANGELOG.md
 ├── .github/
 │   └── workflows/
-│       └── build.yml      -- Auto-build .exe for all platforms
+│       └── build.yml
 ├── docs/
 │   ├── syntax.md
 │   ├── stdlib.md
@@ -267,8 +266,14 @@ cream/
 │   ├── weather.cream
 │   ├── data_processing.cream
 │   └── strings.cream
-└── tests/
-    └── test_cream.py
+├── tests/
+│   └── test_cream.py
+└── vscode-extension/
+    ├── package.json
+    ├── syntaxes/
+    │   └── cream.tmLanguage.json
+    └── snippets/
+        └── cream.json
 ```
 
 ---
@@ -280,12 +285,14 @@ cream/
 - [x] Interpreter
 - [x] Standard library (450+ operations)
 - [x] HTTP / networking
-- [x] Auto-build for Windows, Linux, macOS
-- [ ] `import` — load external .cream files
+- [x] Windows `.exe` build
+- [x] VS Code syntax highlighting extension
+- [x] import system for .cream files
+- [ ] Linux / macOS builds
 - [ ] Classes and inheritance
 - [ ] Package manager (`cream install`)
 - [ ] Compiler to Python / JavaScript
-- [ ] VS Code syntax highlighting extension
+- [ ] Website
 
 ---
 
@@ -305,4 +312,4 @@ Contributions are welcome! Feel free to:
 
 ---
 
-*Cream is open source. © 2026 Mauya Apps*
+*Cream is open source. © 2026 Mauya Apps*****
