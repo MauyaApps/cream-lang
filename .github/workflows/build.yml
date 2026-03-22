@@ -132,26 +132,28 @@ jobs:
         with:
           path: release/
 
-      - name: Rename artifacts
+      - name: Prepare release files
         run: |
-          cp release/cream-windows/cream.exe        release/cream-windows.exe
-          cp release/cream-linux/cream               release/cream-linux
-          cp release/cream-macos/cream               release/cream-macos
-          cp release/cream-ide-windows/cream-ide.exe release/cream-ide-windows.exe
-          cp release/cream-ide-linux/cream-ide        release/cream-ide-linux
-          cp release/cream-ide-macos/cream-ide        release/cream-ide-macos
-          chmod +x release/cream-linux release/cream-macos
-          chmod +x release/cream-ide-linux release/cream-ide-macos
+          mkdir -p final
+          cp release/cream-windows/cream.exe        final/cream-windows.exe
+          cp release/cream-linux/cream               final/cream-linux
+          cp release/cream-macos/cream               final/cream-macos
+          cp release/cream-ide-windows/cream-ide.exe final/cream-ide-windows.exe
+          cp release/cream-ide-linux/cream-ide        final/cream-ide-linux
+          cp release/cream-ide-macos/cream-ide        final/cream-ide-macos
+          chmod +x final/cream-linux final/cream-macos
+          chmod +x final/cream-ide-linux final/cream-ide-macos
+          ls -la final/
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release/cream-windows.exe
-            release/cream-linux
-            release/cream-macos
-            release/cream-ide-windows.exe
-            release/cream-ide-linux
-            release/cream-ide-macos
+            final/cream-windows.exe
+            final/cream-linux
+            final/cream-macos
+            final/cream-ide-windows.exe
+            final/cream-ide-linux
+            final/cream-ide-macos
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
