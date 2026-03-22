@@ -249,6 +249,36 @@ See the [`examples/`](examples/) folder:
 
 ---
 
+## 🖥️ Cream IDE
+
+A full-featured IDE for writing and running Cream programs.
+
+### Download
+
+| Platform | File |
+|----------|------|
+| 🪟 Windows | `cream-ide-windows.exe` from [Releases](../../releases/latest) |
+| 🐧 Linux | `cream-ide-linux` from [Releases](../../releases/latest) |
+| 🍎 macOS | `cream-ide-macos` from [Releases](../../releases/latest) |
+
+### Features
+- ✅ Syntax highlighting
+- ✅ Line numbers
+- ✅ Run code with F5
+- ✅ Output in separate window
+- ✅ Auto-indent
+- ✅ Dark theme
+- ✅ Open / Save `.cream` files
+- ✅ Built-in Cream interpreter — no extra files needed
+
+### Run from source
+```bash
+pip install PyQt6
+python cream_ide_standalone.py
+```
+
+---
+
 ## Documentation
 
 | Resource | Description |
