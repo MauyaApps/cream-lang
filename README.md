@@ -38,17 +38,36 @@ No Python or anything else required.
 
 ### 🐧 Linux
 
-> 🚧 Coming soon — Linux build is in development.
+1. Go to [Releases](../../releases/latest)
+2. Download `cream-linux`
+3. Make it executable and run:
 
-For now use the Python version below.
+```bash
+chmod +x cream-linux
+./cream-linux hello.cream
+```
+
+Or move to PATH for global use:
+
+```bash
+sudo mv cream-linux /usr/local/bin/cream
+cream hello.cream
+```
 
 ---
 
 ### 🍎 macOS
 
-> 🚧 Coming soon — macOS build is in development.
+1. Go to [Releases](../../releases/latest)
+2. Download `cream-macos`
+3. Make it executable and run:
 
-For now use the Python version below.
+```bash
+chmod +x cream-macos
+./cream-macos hello.cream
+```
+
+If macOS blocks it — go to System Settings → Privacy → allow it.
 
 ---
 
@@ -288,7 +307,7 @@ cream/
 - [x] Windows `.exe` build
 - [x] VS Code syntax highlighting extension
 - [x] import system for .cream files
-- [ ] Linux / macOS builds
+- [x] Linux / macOS builds
 - [ ] Classes and inheritance
 - [ ] Package manager (`cream install`)
 - [ ] Compiler to Python / JavaScript
@@ -312,4 +331,4 @@ Contributions are welcome! Feel free to:
 
 ---
 
-*Cream is open source. © 2026 Mauya Apps*****
+*Cream is open source. © 2026 Mauya Apps*
