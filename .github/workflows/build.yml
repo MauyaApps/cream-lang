@@ -1,0 +1,133 @@
+name: Build Cream
+
+on:
+  release:
+    types: [ created ]
+  workflow_dispatch:
+
+jobs:
+
+  # ══════════════════════════════════════════
+  #  Сборка Windows .exe
+  # ══════════════════════════════════════════
+  build-windows:
+    name: Build Windows .exe
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build .exe
+        run: pyinstaller --onefile --name cream cream.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cream-windows
+          path: dist/cream.exe
+
+  # ══════════════════════════════════════════
+  #  Сборка Linux
+  # ══════════════════════════════════════════
+  build-linux:
+    name: Build Linux binary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build binary
+        run: pyinstaller --onefile --name cream cream.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cream-linux
+          path: dist/cream
+
+  # ══════════════════════════════════════════
+  #  Сборка macOS
+  # ══════════════════════════════════════════
+  build-macos:
+    name: Build macOS binary
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build binary
+        run: pyinstaller --onefile --name cream cream.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cream-macos
+          path: dist/cream
+
+  # ══════════════════════════════════════════
+  #  Публикация релиза
+  # ══════════════════════════════════════════
+  release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-linux, build-macos]
+    if: github.event_name == 'release'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: cream-windows
+          path: release/
+
+      - name: Download Linux
+        uses: actions/download-artifact@v4
+        with:
+          name: cream-linux
+          path: release/
+
+      - name: Download macOS
+        uses: actions/download-artifact@v4
+        with:
+          name: cream-macos
+          path: release/
+
+      - name: Rename artifacts
+        run: |
+          mv release/cream.exe release/cream-windows.exe
+          mv release/cream release/cream-linux
+          cp release/cream-linux release/cream-macos
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/cream-windows.exe
+            release/cream-linux
+            release/cream-macos
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
