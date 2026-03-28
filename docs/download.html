@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Download — Cream Language</title>
+  <link rel="stylesheet" href="style.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+</head>
+<body>
+  <div class="scanlines"></div><div class="noise"></div>
+  <nav>
+    <button class="nav-burger" aria-label="Menu"><span></span><span></span><span></span></button>
+    <a href="index.html" class="nav-logo"><span class="logo-bracket">[</span>cream<span class="logo-bracket">]</span></a>
+    <div class="nav-links">
+      <a href="index.html" data-en="Home" data-ru="Главная">Home</a>
+      <a href="docs.html" data-en="Docs" data-ru="Документация">Docs</a>
+      <a href="examples.html" data-en="Examples" data-ru="Примеры">Examples</a>
+      <a href="download.html" class="active" data-en="Download" data-ru="Скачать">Download</a>
+      <a href="faq.html">FAQ</a>
+      <a href="guide.html" data-en="Guide PDF" data-ru="Гайд PDF">Guide PDF</a>
+      <button class="lang-toggle" onclick="toggleLang()">RU</button>
+    </div>
+  </nav>
+  <div class="nav-drawer">
+    <a href="index.html" data-en="Home" data-ru="Главная">Home</a>
+    <a href="docs.html" data-en="Docs" data-ru="Документация">Docs</a>
+    <a href="examples.html" data-en="Examples" data-ru="Примеры">Examples</a>
+    <a href="download.html" class="active" data-en="Download" data-ru="Скачать">Download</a>
+    <a href="faq.html">FAQ</a>
+    <a href="guide.html" data-en="Guide PDF" data-ru="Гайд PDF">Guide PDF</a>
+    <div class="drawer-lang"><span data-en="Language:" data-ru="Язык:">Language:</span><button onclick="toggleLang()" class="lang-toggle">RU</button></div>
+  </div>
+
+  <div class="dl-wrap">
+    <h1 data-en="Download Cream" data-ru="Скачать Cream">Download Cream</h1>
+    <div class="version-badge">latest stable</div>
+
+    <div class="dl-picker">
+      <div>
+        <div class="dl-group-label" data-en="Operating System" data-ru="Операционная система">Operating System</div>
+        <div class="dl-options">
+          <label class="dl-option selected">
+            <input type="radio" name="os" value="windows" checked onchange="updateBtn()"/>
+            <span class="dl-option-icon">🪟</span>
+            <div><div class="dl-option-text">Windows</div><div class="dl-option-sub">x64 · .exe</div></div>
+          </label>
+          <label class="dl-option">
+            <input type="radio" name="os" value="linux" onchange="updateBtn()"/>
+            <span class="dl-option-icon">🐧</span>
+            <div><div class="dl-option-text">Linux</div><div class="dl-option-sub">x64 · binary</div></div>
+          </label>
+          <label class="dl-option">
+            <input type="radio" name="os" value="macos" onchange="updateBtn()"/>
+            <span class="dl-option-icon">🍎</span>
+            <div><div class="dl-option-text">macOS</div><div class="dl-option-sub">x64 / ARM</div></div>
+          </label>
+          <label class="dl-option">
+            <input type="radio" name="os" value="android" onchange="updateBtn()"/>
+            <span class="dl-option-icon">🤖</span>
+            <div><div class="dl-option-text">Android</div><div class="dl-option-sub">AIDE · .zip</div></div>
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <div class="dl-group-label" data-en="Version" data-ru="Версия">Version</div>
+        <div class="dl-options">
+          <label class="dl-option selected">
+            <input type="radio" name="ver" value="0.2.1" checked onchange="updateBtn()"/>
+            <span class="dl-option-icon">⭐</span>
+            <div><div class="dl-option-text">v0.2.1</div><div class="dl-option-sub" data-en="Latest stable" data-ru="Последняя стабильная">Latest stable</div></div>
+          </label>
+          <label class="dl-option">
+            <input type="radio" name="ver" value="0.2.0" onchange="updateBtn()"/>
+            <span class="dl-option-icon">📦</span>
+            <div><div class="dl-option-text">v0.2.0</div><div class="dl-option-sub" data-en="Previous release" data-ru="Предыдущий релиз">Previous release</div></div>
+          </label>
+          <label class="dl-option">
+            <input type="radio" name="ver" value="0.1.1" onchange="updateBtn()"/>
+            <span class="dl-option-icon">🗂</span>
+            <div><div class="dl-option-text">v0.1.1</div><div class="dl-option-sub" data-en="Archive" data-ru="Архив">Archive</div></div>
+          </label>
+          <label class="dl-option">
+            <input type="radio" name="ver" value="0.1.0" onchange="updateBtn()"/>
+            <span class="dl-option-icon">🗂</span>
+            <div><div class="dl-option-text">v0.1.0</div><div class="dl-option-sub" data-en="Archive" data-ru="Архив">Archive</div></div>
+          </label>
+        </div>
+
+        <div class="dl-group-label" style="margin-top:1.5rem" data-en="Include" data-ru="Включить">Include</div>
+        <div class="dl-options">
+          <label class="dl-option selected">
+            <input type="checkbox" id="chk-ide" checked onchange="updateBtn()"/>
+            <span class="dl-option-icon">🖥</span>
+            <div><div class="dl-option-text">Cream IDE</div><div class="dl-option-sub">PyQt6 desktop IDE</div></div>
+          </label>
+          <label class="dl-option selected">
+            <input type="checkbox" id="chk-stdlib" checked onchange="updateBtn()"/>
+            <span class="dl-option-icon">📚</span>
+            <div><div class="dl-option-text" data-en="Standard Library" data-ru="Стандартная библиотека">Standard Library</div><div class="dl-option-sub">450+ ops</div></div>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="dl-btn-wrap">
+      <button id="dl-btn" onclick="doDownload()">
+        ↓ <span id="dl-label">Download cream-0.2.1-windows.exe</span>
+      </button>
+      <div class="dl-status" id="dl-status"></div>
+    </div>
+
+    <hr class="dl-divider"/>
+    <div class="dl-extra-title" data-en="VS Code Extension" data-ru="Расширение VS Code">VS Code Extension</div>
+    <pre style="background:var(--bg2);border:1px solid var(--border);padding:1rem 1.5rem;font-size:0.8rem;margin-bottom:1rem"><code>ext install MauyaApps.cream-language</code></pre>
+    <a href="https://marketplace.visualstudio.com/items?itemName=MauyaApps.cream-language" class="btn-secondary" target="_blank" style="display:inline-flex" data-en="Open Marketplace →" data-ru="Marketplace →">Open Marketplace →</a>
+    <hr class="dl-divider"/>
+    <div class="dl-extra-title" data-en="All Releases on GitHub" data-ru="Все релизы на GitHub">All Releases on GitHub</div>
+    <p class="download-note" style="margin-bottom:1.5rem" data-en="Browse all versions, changelogs and source archives." data-ru="Все версии, описания изменений и архивы исходников.">Browse all versions, changelogs and source archives.</p>
+    <a href="https://github.com/MauyaApps/cream-lang/releases" class="btn-primary" target="_blank"><span data-en="All Releases" data-ru="Все релизы">All Releases</span> →</a>
+  </div>
+
+  <footer><span>© 2025 MauyaApps</span><span>·</span><a href="https://github.com/MauyaApps/cream-lang" target="_blank">GitHub</a></footer>
+  <script src="nav.js"></script>
+  <script>
+    const RELEASE_BASE = 'https://github.com/MauyaApps/cream-lang/releases/download';
+    const EXT = { windows: '.exe', linux: '', macos: '', android: '.zip' };
+
+    function getOS() { return document.querySelector('input[name="os"]:checked')?.value || 'windows'; }
+    function getVer() { return document.querySelector('input[name="ver"]:checked')?.value || '0.2.1'; }
+
+    function updateBtn() {
+      const os = getOS(), ver = getVer();
+      const fname = `cream-${ver}-${os}${EXT[os]||''}`;
+      document.getElementById('dl-label').textContent = `Download ${fname}`;
+      document.getElementById('dl-status').textContent = '';
+      document.querySelectorAll('.dl-option').forEach(el => {
+        const inp = el.querySelector('input');
+        el.classList.toggle('selected', !!inp?.checked);
+      });
+    }
+
+    function doDownload() {
+      const os = getOS(), ver = getVer();
+      const fname = `cream-${ver}-${os}${EXT[os]||''}`;
+      const url = `${RELEASE_BASE}/v${ver}/${fname}`;
+      // hidden anchor with download attr — browser downloads directly, no new tab
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fname;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      document.getElementById('dl-status').textContent = `↓ Downloading ${fname}…`;
+      setTimeout(() => { document.getElementById('dl-status').textContent = ''; }, 4000);
+    }
+
+    document.addEventListener('DOMContentLoaded', updateBtn);
+  </script>
+</body>
+</html>
