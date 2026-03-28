@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Docs — Cream Language</title>
+  <link rel="stylesheet" href="style.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+</head>
+<body>
+  <div class="scanlines"></div><div class="noise"></div>
+  <nav>
+    <button class="nav-burger" aria-label="Menu"><span></span><span></span><span></span></button>
+    <a href="index.html" class="nav-logo"><span class="logo-bracket">[</span>cream<span class="logo-bracket">]</span></a>
+    <div class="nav-links">
+      <a href="index.html" data-en="Home" data-ru="Главная">Home</a>
+      <a href="docs.html" class="active" data-en="Docs" data-ru="Документация">Docs</a>
+      <a href="examples.html" data-en="Examples" data-ru="Примеры">Examples</a>
+      <a href="download.html" data-en="Download" data-ru="Скачать">Download</a>
+      <a href="faq.html">FAQ</a>
+      <a href="guide.html" data-en="Guide PDF" data-ru="Гайд PDF">Guide PDF</a>
+      <button class="lang-toggle" onclick="toggleLang()">RU</button>
+    </div>
+  </nav>
+  <div class="nav-drawer">
+    <a href="index.html" data-en="Home" data-ru="Главная">Home</a>
+    <a href="docs.html" class="active" data-en="Docs" data-ru="Документация">Docs</a>
+    <a href="examples.html" data-en="Examples" data-ru="Примеры">Examples</a>
+    <a href="download.html" data-en="Download" data-ru="Скачать">Download</a>
+    <a href="faq.html">FAQ</a>
+    <a href="guide.html" data-en="Guide PDF" data-ru="Гайд PDF">Guide PDF</a>
+    <div class="drawer-lang"><span data-en="Language:" data-ru="Язык:">Language:</span><button onclick="toggleLang()" class="lang-toggle">RU</button></div>
+  </div>
+
+  <div class="page-layout">
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label" data-en="Getting Started" data-ru="Начало работы">Getting Started</div>
+        <a href="#install" class="sidebar-link active" data-en="Installation" data-ru="Установка">Installation</a>
+        <a href="#hello" class="sidebar-link">Hello World</a>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label" data-en="Language" data-ru="Язык">Language</div>
+        <a href="#variables" class="sidebar-link" data-en="Variables" data-ru="Переменные">Variables</a>
+        <a href="#control" class="sidebar-link" data-en="Control Flow" data-ru="Управление">Control Flow</a>
+        <a href="#loops" class="sidebar-link" data-en="Loops" data-ru="Циклы">Loops</a>
+        <a href="#actions" class="sidebar-link" data-en="Actions" data-ru="Функции">Actions</a>
+        <a href="#pipeline" class="sidebar-link">Pipeline</a>
+        <a href="#structs" class="sidebar-link">Structs</a>
+        <a href="#errors" class="sidebar-link" data-en="Error Handling" data-ru="Ошибки">Error Handling</a>
+        <a href="#stdlib" class="sidebar-link" data-en="Std Library" data-ru="Стд библиотека">Std Library</a>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label" data-en="Toolchain" data-ru="Инструменты">Toolchain</div>
+        <a href="#ide" class="sidebar-link">Cream IDE</a>
+        <a href="#vscode" class="sidebar-link">VS Code</a>
+        <a href="#browser" class="sidebar-link" data-en="Browser" data-ru="Браузер">Browser</a>
+      </div>
+    </aside>
+
+    <div class="doc-content">
+      <h1 id="install" data-en="Documentation" data-ru="Документация">Documentation</h1>
+
+      <h2 data-en="Installation" data-ru="Установка">Installation</h2>
+      <p data-en="Download Cream from the releases page. No Python or dependencies required." data-ru="Скачайте Cream со страницы релизов. Python и зависимости не нужны.">Download Cream from the releases page. No Python or dependencies required.</p>
+      <pre><code><span class="kw"># Windows</span>
+cream.exe hello.cream
+
+<span class="kw"># Linux / macOS</span>
+chmod +x cream-linux
+./cream-linux hello.cream
+
+<span class="kw"># Python (any platform)</span>
+python cream.py hello.cream</code></pre>
+
+      <h2 id="hello">Hello World</h2>
+      <pre><code><span class="kw">--</span> <span class="cm">Comments use double dash</span>
+name = <span class="str">"World"</span>
+<span class="fn">say</span> <span class="str">"Hello, {name}!"</span></code></pre>
+
+      <h2 id="variables" data-en="Variables" data-ru="Переменные">Variables</h2>
+      <p data-en="No keywords needed — just assign directly." data-ru="Никаких ключевых слов — просто присваивай напрямую.">No keywords needed — just assign directly.</p>
+      <pre><code>name   = <span class="str">"Alice"</span>    <span class="kw">--</span> <span class="cm">string</span>
+age    = <span class="num">25</span>          <span class="kw">--</span> <span class="cm">number</span>
+active = <span class="kw">yes</span>         <span class="kw">--</span> <span class="cm">boolean (yes/no)</span>
+scores = [<span class="num">88</span>, <span class="num">92</span>, <span class="num">75</span>] <span class="kw">--</span> <span class="cm">list</span></code></pre>
+
+      <h2 id="control" data-en="Control Flow" data-ru="Управление потоком">Control Flow</h2>
+      <pre><code><span class="kw">if</span> age >= <span class="num">18</span>
+    <span class="fn">say</span> <span class="str">"Adult"</span>
+<span class="kw">or if</span> age >= <span class="num">13</span>
+    <span class="fn">say</span> <span class="str">"Teen"</span>
+<span class="kw">else</span>
+    <span class="fn">say</span> <span class="str">"Child"</span></code></pre>
+
+      <h2 id="loops" data-en="Loops" data-ru="Циклы">Loops</h2>
+      <pre><code><span class="kw">--</span> <span class="cm">Repeat N times</span>
+<span class="kw">repeat</span> <span class="num">3</span>
+    <span class="fn">say</span> <span class="str">"Hello!"</span>
+
+<span class="kw">--</span> <span class="cm">For each loop</span>
+<span class="kw">for each</span> x <span class="kw">in</span> [<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>]
+    <span class="fn">say</span> x * <span class="num">2</span>
+
+<span class="kw">--</span> <span class="cm">Range</span>
+<span class="kw">for each</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="num">1</span>, <span class="num">11</span>)
+    <span class="fn">say</span> i</code></pre>
+
+      <h2 id="actions" data-en="Actions (Functions)" data-ru="Действия (Функции)">Actions (Functions)</h2>
+      <pre><code><span class="kw">action</span> <span class="fn">greet</span>(name, greeting = <span class="str">"Hello"</span>)
+    <span class="kw">return</span> <span class="str">"{greeting}, {name}!"</span>
+
+<span class="fn">say</span> <span class="fn">greet</span>(<span class="str">"Bob"</span>)
+<span class="fn">say</span> <span class="fn">greet</span>(<span class="str">"Alice"</span>, <span class="str">"Hi"</span>)</code></pre>
+
+      <h2 id="pipeline">Pipeline</h2>
+      <p data-en="Chain operations with the | operator." data-ru="Цепочки операций через оператор |.">Chain operations with the | operator.</p>
+      <pre><code>result = [<span class="num">1</span>,<span class="num">2</span>,<span class="num">3</span>,<span class="num">4</span>,<span class="num">5</span>,<span class="num">6</span>,<span class="num">7</span>,<span class="num">8</span>,<span class="num">9</span>,<span class="num">10</span>]
+    | <span class="fn">filter</span>(x → x % <span class="num">2</span> == <span class="num">0</span>)
+    | <span class="fn">map</span>(x → x * x)
+    | <span class="fn">sum</span>
+<span class="fn">say</span> result  <span class="kw">--</span> <span class="cm">220</span></code></pre>
+
+      <h2 id="structs">Structs</h2>
+      <pre><code><span class="kw">struct</span> Point
+    x: number
+    y: number
+
+p = <span class="fn">Point</span>(<span class="num">10</span>, <span class="num">20</span>)
+<span class="fn">say</span> <span class="str">"Point: {p.x}, {p.y}"</span></code></pre>
+
+      <h2 id="errors" data-en="Error Handling" data-ru="Обработка ошибок">Error Handling</h2>
+      <pre><code><span class="kw">try</span>
+    data = <span class="fn">net</span>(<span class="str">"https://api.example.com"</span>, <span class="str">"json"</span>)
+<span class="kw">on error</span> e
+    <span class="fn">say</span> <span class="str">"Failed: {e.message}"</span></code></pre>
+
+      <h2 id="stdlib" data-en="Standard Library" data-ru="Стандартная библиотека">Standard Library (450+ ops)</h2>
+      <pre><code><span class="fn">math</span>(x, <span class="str">"sqrt"</span>)          <span class="kw">--</span> <span class="cm">sqrt, pow, sin, cos...</span>
+<span class="fn">rand</span>(<span class="num">1</span>, <span class="num">100</span>)              <span class="kw">--</span> <span class="cm">random number</span>
+<span class="fn">stats</span>(list, <span class="str">"mean"</span>)       <span class="kw">--</span> <span class="cm">mean, median, std...</span>
+<span class="fn">str_</span>(s, <span class="str">"upper"</span>)          <span class="kw">--</span> <span class="cm">upper, lower, trim...</span>
+<span class="fn">file</span>(path, <span class="str">"read"</span>)        <span class="kw">--</span> <span class="cm">read, write, append...</span>
+<span class="fn">net</span>(url, <span class="str">"json"</span>)          <span class="kw">--</span> <span class="cm">GET, POST, download...</span>
+<span class="fn">convert</span>(x, <span class="str">"km"</span>, <span class="str">"miles"</span>) <span class="kw">--</span> <span class="cm">unit conversions</span>
+<span class="fn">date</span>(<span class="str">"today"</span>)             <span class="kw">--</span> <span class="cm">today, time, format...</span></code></pre>
+
+      <h2 id="ide">Cream IDE</h2>
+      <p data-en="Full-featured IDE with syntax highlighting, line numbers, F5 run, dark theme. Available for Windows, Linux, macOS." data-ru="Полноценная IDE с подсветкой синтаксиса, нумерацией строк, запуском по F5. Windows, Linux, macOS.">Full-featured IDE with syntax highlighting, line numbers, F5 run, dark theme.</p>
+      <pre><code>pip install PyQt6
+python cream_ide_standalone.py</code></pre>
+
+      <h2 id="vscode">VS Code Extension</h2>
+      <pre><code>ext install MauyaApps.cream-language</code></pre>
+      <p data-en="Syntax highlighting, snippets (if, action, repeat, pipe...), comment toggling with --." data-ru="Подсветка синтаксиса, сниппеты (if, action, repeat, pipe...), комментарии через --.">Syntax highlighting, snippets, comment toggling with --.</p>
+
+      <h2 id="browser" data-en="Run in Browser" data-ru="Запуск в браузере">Run in Browser</h2>
+      <p data-en="Open docs/cream-lang.html from the repo in any browser — write and run Cream code instantly, no install needed." data-ru="Откройте docs/cream-lang.html из репозитория в любом браузере — пишите и запускайте Cream без установки.">Open docs/cream-lang.html from the repo in any browser.</p>
+    </div>
+  </div>
+
+  <script src="nav.js"></script>
+</body>
+</html>

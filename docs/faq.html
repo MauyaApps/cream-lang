@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FAQ — Cream Language</title>
+  <link rel="stylesheet" href="style.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+</head>
+<body>
+  <div class="scanlines"></div><div class="noise"></div>
+  <nav>
+    <button class="nav-burger" aria-label="Menu"><span></span><span></span><span></span></button>
+    <a href="index.html" class="nav-logo"><span class="logo-bracket">[</span>cream<span class="logo-bracket">]</span></a>
+    <div class="nav-links">
+      <a href="index.html" data-en="Home" data-ru="Главная">Home</a>
+      <a href="docs.html" data-en="Docs" data-ru="Документация">Docs</a>
+      <a href="examples.html" data-en="Examples" data-ru="Примеры">Examples</a>
+      <a href="download.html" data-en="Download" data-ru="Скачать">Download</a>
+      <a href="faq.html" class="active">FAQ</a>
+      <a href="guide.html" data-en="Guide PDF" data-ru="Гайд PDF">Guide PDF</a>
+      <button class="lang-toggle" onclick="toggleLang()">RU</button>
+    </div>
+  </nav>
+  <div class="nav-drawer">
+    <a href="index.html" data-en="Home" data-ru="Главная">Home</a>
+    <a href="docs.html" data-en="Docs" data-ru="Документация">Docs</a>
+    <a href="examples.html" data-en="Examples" data-ru="Примеры">Examples</a>
+    <a href="download.html" data-en="Download" data-ru="Скачать">Download</a>
+    <a href="faq.html" class="active">FAQ</a>
+    <a href="guide.html" data-en="Guide PDF" data-ru="Гайд PDF">Guide PDF</a>
+    <div class="drawer-lang"><span data-en="Language:" data-ru="Язык:">Language:</span><button onclick="toggleLang()" class="lang-toggle">RU</button></div>
+  </div>
+
+  <div class="faq-wrap">
+    <h1 data-en="Frequently Asked Questions" data-ru="Часто задаваемые вопросы">Frequently Asked Questions</h1>
+    <p class="subtitle" data-en="Can't find the answer? Open an issue on GitHub." data-ru="Не нашли ответ? Создайте issue на GitHub.">Can't find the answer? Open an issue on GitHub.</p>
+
+    <div class="faq-list">
+
+      <div class="faq-item">
+        <div class="faq-q" data-en="What is Cream?" data-ru="Что такое Cream?">What is Cream?</div>
+        <div class="faq-a" data-en="Cream is an open-source programming language created by MauyaApps. It features a clean, expressive syntax and runs on a Python-based interpreter with 450+ built-in operations. It ships with its own IDE, VS Code extension, and an Android IDE for AIDE." data-ru="Cream — это язык программирования с открытым исходным кодом, созданный MauyaApps. Он имеет чистый выразительный синтаксис и работает на интерпретаторе на основе Python с 450+ встроенными операциями. В комплекте идут IDE, расширение VS Code и Android IDE для AIDE.">Cream is an open-source programming language created by MauyaApps. It features a clean, expressive syntax and runs on a Python-based interpreter with 450+ built-in operations. It ships with its own IDE, VS Code extension, and an Android IDE for AIDE.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" data-en="Is Cream free?" data-ru="Cream бесплатный?">Is Cream free?</div>
+        <div class="faq-a" data-en="Yes. Cream is completely free and open source, licensed under MIT. You can use it for personal and commercial projects." data-ru="Да. Cream полностью бесплатный и открытый, лицензия MIT. Можно использовать в личных и коммерческих проектах.">Yes. Cream is completely free and open source, licensed under MIT. You can use it for personal and commercial projects.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" data-en="How do I run a Cream file?" data-ru="Как запустить файл .cream?">How do I run a Cream file?</div>
+        <div class="faq-a">
+          <span data-en="After installing Cream, run:" data-ru="После установки Cream запустите:">After installing Cream, run:</span><br/><br/>
+          <code>cream yourfile.cream</code><br/><br/>
+          <span data-en="Or open the file in Cream IDE and press the Run button." data-ru="Или откройте файл в Cream IDE и нажмите кнопку Run.">Or open the file in Cream IDE and press the Run button.</span>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" data-en="What platforms does Cream support?" data-ru="Какие платформы поддерживает Cream?">What platforms does Cream support?</div>
+        <div class="faq-a" data-en="Cream runs on Windows, Linux, macOS, and Android (via AIDE). CI builds are available for all platforms on every release." data-ru="Cream работает на Windows, Linux, macOS и Android (через AIDE). CI-сборки доступны для всех платформ в каждом релизе.">Cream runs on Windows, Linux, macOS, and Android (via AIDE). CI builds are available for all platforms on every release.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" data-en="Does Cream have a VS Code extension?" data-ru="Есть ли расширение для VS Code?">Does Cream have a VS Code extension?</div>
+        <div class="faq-a">
+          <span data-en="Yes! Install it from the VS Code Marketplace:" data-ru="Да! Установите из VS Code Marketplace:">Yes! Install it from the VS Code Marketplace:</span><br/><br/>
+          <code>ext install MauyaApps.cream-language</code><br/><br/>
+          <span data-en="It provides syntax highlighting and file association for .cream files." data-ru="Обеспечивает подсветку синтаксиса и ассоциацию .cream файлов.">It provides syntax highlighting and file association for .cream files.</span>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" data-en="How do I define a function?" data-ru="Как объявить функцию?">How do I define a function?</div>
+        <div class="faq-a">
+          <span data-en="Use the func keyword:" data-ru="Используйте ключевое слово func:">Use the func keyword:</span><br/><br/>
+          <code>func greet(name) { print("Hello, " + name) }</code>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" data-en="How many built-in operations does Cream have?" data-ru="Сколько встроенных операций в Cream?">How many built-in operations does Cream have?</div>
+        <div class="faq-a" data-en="Over 450. These cover math, strings, lists, I/O, random numbers, type checking, and more. See the Standard Library section in the docs." data-ru="Более 450. Они охватывают математику, строки, списки, ввод/вывод, случайные числа, проверку типов и многое другое. Смотрите раздел Стандартная библиотека в документации.">Over 450. These cover math, strings, lists, I/O, random numbers, type checking, and more. See the Standard Library section in the docs.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" data-en="Can I contribute to Cream?" data-ru="Могу ли я участвовать в разработке Cream?">Can I contribute to Cream?</div>
+        <div class="faq-a" data-en="Absolutely. Fork the repo on GitHub, make your changes, and open a pull request. Bug reports and feature requests are also welcome via GitHub Issues." data-ru="Конечно. Форкните репозиторий на GitHub, внесите изменения и откройте pull request. Сообщения об ошибках и запросы функций также приветствуются через GitHub Issues.">Absolutely. Fork the repo on GitHub, make your changes, and open a pull request. Bug reports and feature requests are also welcome via GitHub Issues.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" data-en="Where can I report a bug?" data-ru="Где сообщить об ошибке?">Where can I report a bug?</div>
+        <div class="faq-a" data-en="Open an issue on the GitHub repository: github.com/MauyaApps/cream-lang. Please include your OS, Cream version, and a minimal code example that reproduces the bug." data-ru="Создайте issue в репозитории GitHub: github.com/MauyaApps/cream-lang. Укажите ОС, версию Cream и минимальный пример кода, воспроизводящий ошибку.">Open an issue on the GitHub repository: github.com/MauyaApps/cream-lang. Please include your OS, Cream version, and a minimal code example that reproduces the bug.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer><span>© 2025 MauyaApps</span><span>·</span><a href="https://github.com/MauyaApps/cream-lang" target="_blank">GitHub</a></footer>
+  <script src="nav.js"></script>
+  <script>
+    document.querySelectorAll('.faq-q').forEach(q => {
+      q.addEventListener('click', () => {
+        const item = q.parentElement;
+        const wasOpen = item.classList.contains('open');
+        document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+        if (!wasOpen) item.classList.add('open');
+      });
+    });
+  </script>
+</body>
+</html>
