@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Examples — Cream Language</title>
+  <link rel="stylesheet" href="style.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+</head>
+<body>
+  <div class="scanlines"></div><div class="noise"></div>
+  <nav>
+    <button class="nav-burger" aria-label="Menu"><span></span><span></span><span></span></button>
+    <a href="index.html" class="nav-logo"><span class="logo-bracket">[</span>cream<span class="logo-bracket">]</span></a>
+    <div class="nav-links">
+      <a href="index.html" data-en="Home" data-ru="Главная">Home</a>
+      <a href="docs.html" data-en="Docs" data-ru="Документация">Docs</a>
+      <a href="examples.html" class="active" data-en="Examples" data-ru="Примеры">Examples</a>
+      <a href="download.html" data-en="Download" data-ru="Скачать">Download</a>
+      <a href="faq.html">FAQ</a>
+      <a href="guide.html" data-en="Guide PDF" data-ru="Гайд PDF">Guide PDF</a>
+      <button class="lang-toggle" onclick="toggleLang()">RU</button>
+    </div>
+  </nav>
+  <div class="nav-drawer">
+    <a href="index.html" data-en="Home" data-ru="Главная">Home</a>
+    <a href="docs.html" data-en="Docs" data-ru="Документация">Docs</a>
+    <a href="examples.html" class="active" data-en="Examples" data-ru="Примеры">Examples</a>
+    <a href="download.html" data-en="Download" data-ru="Скачать">Download</a>
+    <a href="faq.html">FAQ</a>
+    <a href="guide.html" data-en="Guide PDF" data-ru="Гайд PDF">Guide PDF</a>
+    <div class="drawer-lang"><span data-en="Language:" data-ru="Язык:">Language:</span><button onclick="toggleLang()" class="lang-toggle">RU</button></div>
+  </div>
+
+  <div class="page-header">
+    <h1 data-en="Code Examples" data-ru="Примеры кода">Code Examples</h1>
+    <p data-en="Real Cream programs to get you started." data-ru="Настоящие программы на Cream для быстрого старта.">Real Cream programs to get you started.</p>
+  </div>
+
+  <div class="examples-grid">
+    <div class="example-card">
+      <div class="example-title" data-en="Hello World" data-ru="Hello World">Hello World</div>
+      <pre><code><span class="fn">print</span>(<span class="str">"Hello, World!"</span>)</code></pre>
+    </div>
+    <div class="example-card">
+      <div class="example-title">FizzBuzz</div>
+      <pre><code><span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="num">1</span>, <span class="num">31</span>) {
+  <span class="kw">if</span> i % <span class="num">15</span> == <span class="num">0</span> { <span class="fn">print</span>(<span class="str">"FizzBuzz"</span>) }
+  <span class="kw">else if</span> i % <span class="num">3</span> == <span class="num">0</span> { <span class="fn">print</span>(<span class="str">"Fizz"</span>) }
+  <span class="kw">else if</span> i % <span class="num">5</span> == <span class="num">0</span> { <span class="fn">print</span>(<span class="str">"Buzz"</span>) }
+  <span class="kw">else</span> { <span class="fn">print</span>(i) }
+}</code></pre>
+    </div>
+    <div class="example-card">
+      <div class="example-title" data-en="Fibonacci" data-ru="Числа Фибоначчи">Fibonacci</div>
+      <pre><code><span class="kw">func</span> <span class="fn">fib</span>(n) {
+  <span class="kw">if</span> n <= <span class="num">1</span> { <span class="kw">return</span> n }
+  <span class="kw">return</span> <span class="fn">fib</span>(n-<span class="num">1</span>) + <span class="fn">fib</span>(n-<span class="num">2</span>)
+}
+<span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="num">0</span>, <span class="num">10</span>) { <span class="fn">print</span>(<span class="fn">fib</span>(i)) }</code></pre>
+    </div>
+    <div class="example-card">
+      <div class="example-title" data-en="User Input" data-ru="Ввод пользователя">User Input</div>
+      <pre><code><span class="kw">let</span> name = <span class="fn">input</span>(<span class="str">"Your name: "</span>)
+<span class="fn">print</span>(<span class="str">"Hello, "</span> + name + <span class="str">"!"</span>)</code></pre>
+    </div>
+    <div class="example-card">
+      <div class="example-title" data-en="List Operations" data-ru="Работа со списками">List Operations</div>
+      <pre><code><span class="kw">let</span> scores = [<span class="num">88</span>, <span class="num">92</span>, <span class="num">75</span>, <span class="num">100</span>]
+<span class="kw">let</span> total = <span class="num">0</span>
+<span class="kw">for</span> s <span class="kw">in</span> scores { total = total + s }
+<span class="fn">print</span>(<span class="str">"Avg: "</span> + total / scores.<span class="fn">len</span>())</code></pre>
+    </div>
+    <div class="example-card">
+      <div class="example-title" data-en="Random Number Game" data-ru="Угадай число">Random Number Game</div>
+      <pre><code><span class="kw">let</span> secret = <span class="fn">random</span>(<span class="num">1</span>, <span class="num">100</span>)
+<span class="kw">let</span> guess = <span class="num">0</span>
+<span class="kw">while</span> guess != secret {
+  guess = <span class="fn">input</span>(<span class="str">"Guess 1-100: "</span>)
+  <span class="kw">if</span> guess < secret { <span class="fn">print</span>(<span class="str">"Too low!"</span>) }
+  <span class="kw">else if</span> guess > secret { <span class="fn">print</span>(<span class="str">"Too high!"</span>) }
+}
+<span class="fn">print</span>(<span class="str">"Correct! 🎉"</span>)</code></pre>
+    </div>
+    <div class="example-card">
+      <div class="example-title" data-en="Countdown" data-ru="Обратный отсчёт">Countdown</div>
+      <pre><code><span class="kw">let</span> n = <span class="num">10</span>
+<span class="kw">while</span> n >= <span class="num">0</span> {
+  <span class="kw">if</span> n == <span class="num">0</span> { <span class="fn">print</span>(<span class="str">"LAUNCH! 🚀"</span>) }
+  <span class="kw">else</span> { <span class="fn">print</span>(n) }
+  n = n - <span class="num">1</span>
+}</code></pre>
+    </div>
+    <div class="example-card">
+      <div class="example-title" data-en="String Methods" data-ru="Методы строк">String Methods</div>
+      <pre><code><span class="kw">let</span> s = <span class="str">"cream language"</span>
+<span class="fn">print</span>(s.<span class="fn">upper</span>())
+<span class="fn">print</span>(s.<span class="fn">len</span>())
+<span class="fn">print</span>(s.<span class="fn">replace</span>(<span class="str">"language"</span>, <span class="str">"lang"</span>))</code></pre>
+    </div>
+  </div>
+
+  <footer><span>© 2025 MauyaApps</span><span>·</span><a href="https://github.com/MauyaApps/cream-lang" target="_blank">GitHub</a></footer>
+  <script src="nav.js"></script>
+</body>
+</html>
