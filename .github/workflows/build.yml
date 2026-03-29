@@ -106,7 +106,7 @@ jobs:
 
   # ── Release ───────────────────────────────────────────────
   release:
-    needs: [build-windows, build-linux, build-macos, build-android]
+    needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
@@ -127,6 +127,5 @@ jobs:
             linux-build/cream-ide-linux
             macos-build/cream-macos
             macos-build/cream-ide-macos
-            android-build/cream-ide-android.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
