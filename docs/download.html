@@ -130,7 +130,7 @@
     const EXT = { windows: '.exe', linux: '', macos: '', android: '.apk' };
 
     // Versions that only support Windows
-    const WINDOWS_ONLY = ['0.1.0', '0.1.1', '0.2.1'];
+    const WINDOWS_ONLY = ['0.1.0'];
 
     function getOS() { return document.querySelector('input[name="os"]:checked')?.value || 'windows'; }
     function getVer() { return document.querySelector('input[name="ver"]:checked')?.value || '0.2.2'; }
