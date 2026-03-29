@@ -115,11 +115,7 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: "Cream ${{ github.ref_name }}"
-          body_path: CHANGELOG.md
+      with:
           name: "Cream ${{ github.ref_name }}"
           body_path: CHANGELOG.md
           update_existing: true
@@ -127,6 +123,9 @@ jobs:
             windows-build/cream.exe
             windows-build/cream-ide-windows.exe
             linux-build/cream-linux
+            linux-build/cream-ide-linux
+            macos-build/cream-macos
+            macos-build/cream-ide-macos
             linux-build/cream-ide-linux
             macos-build/cream-macos
             macos-build/cream-ide-macos
