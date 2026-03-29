@@ -34,7 +34,7 @@
 
   <div class="dl-wrap">
     <h1 data-en="Download Cream" data-ru="Скачать Cream">Download Cream</h1>
-    <div class="version-badge">latest stable — v0.2.1</div>
+    <div class="version-badge">latest stable — v0.2.2</div>
 
     <div class="dl-picker">
       <!-- OS -->
@@ -56,14 +56,11 @@
             <span class="dl-option-icon">🍎</span>
             <div><div class="dl-option-text">macOS</div><div class="dl-option-sub">x64 / ARM</div></div>
           </label>
-          <!-- Android — WIP, not a radio, just visual -->
-          <div class="dl-option" id="os-android" style="opacity:0.45;cursor:not-allowed" title="Work in progress">
+          <label class="dl-option" id="os-android">
+            <input type="radio" name="os" value="android" onchange="updateBtn()"/>
             <span class="dl-option-icon">🤖</span>
-            <div>
-              <div class="dl-option-text">Android</div>
-              <div class="dl-option-sub" style="color:#ff6b35" data-en="Work in progress" data-ru="В разработке">Work in progress</div>
-            </div>
-          </div>
+            <div><div class="dl-option-text">Android</div><div class="dl-option-sub">API 24+ · .apk</div></div>
+          </label>
         </div>
       </div>
 
@@ -72,14 +69,19 @@
         <div class="dl-group-label" data-en="Version" data-ru="Версия">Version</div>
         <div class="dl-options">
           <label class="dl-option selected">
-            <input type="radio" name="ver" value="0.2.1" checked onchange="updateBtn()"/>
+            <input type="radio" name="ver" value="0.2.2" checked onchange="updateBtn()"/>
             <span class="dl-option-icon">⭐</span>
-            <div><div class="dl-option-text">v0.2.1</div><div class="dl-option-sub" data-en="Latest stable" data-ru="Последняя стабильная">Latest stable</div></div>
+            <div><div class="dl-option-text">v0.2.2</div><div class="dl-option-sub" data-en="Latest stable" data-ru="Последняя стабильная">Latest stable</div></div>
+          </label>
+          <label class="dl-option">
+            <input type="radio" name="ver" value="0.2.1" onchange="updateBtn()"/>
+            <span class="dl-option-icon">📦</span>
+            <div><div class="dl-option-text">v0.2.1</div><div class="dl-option-sub" data-en="Previous release" data-ru="Предыдущий релиз">Previous release</div></div>
           </label>
           <label class="dl-option">
             <input type="radio" name="ver" value="0.1.1" onchange="updateBtn()"/>
-            <span class="dl-option-icon">📦</span>
-            <div><div class="dl-option-text">v0.1.1</div><div class="dl-option-sub" data-en="Previous release" data-ru="Предыдущий релиз">Previous release</div></div>
+            <span class="dl-option-icon">🗂</span>
+            <div><div class="dl-option-text">v0.1.1</div><div class="dl-option-sub" data-en="Archive" data-ru="Архив">Archive</div></div>
           </label>
           <label class="dl-option">
             <input type="radio" name="ver" value="0.1.0" onchange="updateBtn()"/>
@@ -106,7 +108,7 @@
 
     <div class="dl-btn-wrap">
       <button id="dl-btn" onclick="doDownload()">
-        ↓ <span id="dl-label">Download cream-0.2.1-windows.exe</span>
+        ↓ <span id="dl-label">Download cream-0.2.2-windows.exe</span>
       </button>
       <div class="dl-status" id="dl-status"></div>
     </div>
@@ -125,13 +127,13 @@
   <script src="nav.js"></script>
   <script>
     const RELEASE_BASE = 'https://github.com/MauyaApps/cream-lang/releases/download';
-    const EXT = { windows: '.exe', linux: '', macos: '' };
+    const EXT = { windows: '.exe', linux: '', macos: '', android: '.apk' };
 
     // Versions that only support Windows
-    const WINDOWS_ONLY = ['0.1.0'];
+    const WINDOWS_ONLY = ['0.1.0', '0.1.1', '0.2.1'];
 
     function getOS() { return document.querySelector('input[name="os"]:checked')?.value || 'windows'; }
-    function getVer() { return document.querySelector('input[name="ver"]:checked')?.value || '0.2.1'; }
+    function getVer() { return document.querySelector('input[name="ver"]:checked')?.value || '0.2.2'; }
 
     function updateBtn() {
       const ver = getVer();
@@ -144,9 +146,8 @@
         if (winOnly) {
           label.style.opacity = '0.35';
           label.style.pointerEvents = 'none';
-          label.title = 'Not available for this version / Недоступно для этой версии';
-          // If currently selected, switch to windows
-          if (input.checked) {
+          label.title = 'Not available for this version';
+          if (input && input.checked) {
             document.querySelector('input[name="os"][value="windows"]').checked = true;
           }
         } else {
@@ -155,10 +156,25 @@
           label.title = '';
         }
       });
+      
+      // Android only available from 0.2.2
+      const androidLabel = document.getElementById('os-android');
+      const androidInput = androidLabel ? androidLabel.querySelector('input') : null;
+      const androidAvail = !WINDOWS_ONLY.includes(ver);
+      if (androidLabel) {
+        androidLabel.style.opacity = androidAvail ? '' : '0.35';
+        androidLabel.style.pointerEvents = androidAvail ? '' : 'none';
+        androidLabel.title = androidAvail ? '' : 'Android available from v0.2.2';
+        if (!androidAvail && androidInput && androidInput.checked) {
+          document.querySelector('input[name="os"][value="windows"]').checked = true;
+        }
+      }
 
       const os = getOS();
       const fname = `cream-${ver}-${os}${EXT[os] || ''}`;
-      document.getElementById('dl-label').textContent = `Download ${fname}`;
+      const isAndroid2 = os === 'android';
+      const displayName = isAndroid2 ? 'cream-ide-android.apk' : fname;
+      document.getElementById('dl-label').textContent = `Download ${displayName}`;
       document.getElementById('dl-status').textContent = '';
 
       // Highlight selected options
@@ -171,7 +187,10 @@
     function doDownload() {
       const os = getOS(), ver = getVer();
       const fname = `cream-${ver}-${os}${EXT[os] || ''}`;
-      const url = `${RELEASE_BASE}/v${ver}/${fname}`;
+      // Android uses a different filename pattern
+      const isAndroid = os === 'android';
+      const fname2 = isAndroid ? `cream-ide-android.apk` : fname;
+      const url = `${RELEASE_BASE}/v${ver}/${fname2}`;
       const a = document.createElement('a');
       a.href = url;
       a.download = fname;
