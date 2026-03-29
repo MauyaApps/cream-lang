@@ -6,28 +6,26 @@ on:
       - '*'
   workflow_dispatch:
 
-jobs:
+# Добавляем права на создание релизов
+permissions:
+  contents: write
 
+jobs:
   # ── Windows ──────────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install PyInstaller
         run: pip install pyinstaller pyqt6
-
       - name: Build cream.exe
         run: pyinstaller --onefile --noconsole --icon=cream.ico --name=cream cream.py
-
       - name: Build cream-ide-windows.exe
         run: pyinstaller --onefile --noconsole --icon=cream.ico --name=cream-ide-windows cream_ide_standalone.py
-
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -41,28 +39,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
         run: |
           pip install pyinstaller
           sudo apt-get install -y python3-pyqt6
-
       - name: Build cream-linux
         run: pyinstaller --onefile --name=cream-linux cream.py
-
       - name: Build cream-ide-linux
         run: pyinstaller --onefile --name=cream-ide-linux cream_ide_standalone.py
-
       - name: Make executable
         run: |
           chmod +x dist/cream-linux
           chmod +x dist/cream-ide-linux
-
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -76,26 +68,20 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
         run: pip install pyinstaller pyqt6
-
       - name: Build cream-macos
         run: pyinstaller --onefile --name=cream-macos cream.py
-
       - name: Build cream-ide-macos
         run: pyinstaller --onefile --name=cream-ide-macos cream_ide_standalone.py
-
       - name: Make executable
         run: |
           chmod +x dist/cream-macos
           chmod +x dist/cream-ide-macos
-
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
