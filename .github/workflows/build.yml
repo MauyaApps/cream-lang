@@ -120,6 +120,9 @@ jobs:
         with:
           name: "Cream ${{ github.ref_name }}"
           body_path: CHANGELOG.md
+          name: "Cream ${{ github.ref_name }}"
+          body_path: CHANGELOG.md
+          update_existing: true
           files: |
             windows-build/cream.exe
             windows-build/cream-ide-windows.exe
