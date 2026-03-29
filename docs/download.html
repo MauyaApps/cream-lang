@@ -173,7 +173,7 @@
       const os = getOS();
       const fname = `cream-${ver}-${os}${EXT[os] || ''}`;
       const isAndroid2 = os === 'android';
-      const displayName = isAndroid2 ? 'cream-ide-android.apk' : fname;
+      const displayName = isAndroid2 ? 'app-release.apk' : fname;
       document.getElementById('dl-label').textContent = `Download ${displayName}`;
       document.getElementById('dl-status').textContent = '';
 
@@ -189,7 +189,7 @@
       const fname = `cream-${ver}-${os}${EXT[os] || ''}`;
       // Android uses a different filename pattern
       const isAndroid = os === 'android';
-      const fname2 = isAndroid ? `cream-ide-android.apk` : fname;
+      const fname2 = isAndroid ? `app-release.apk` : fname;
       const url = `${RELEASE_BASE}/v${ver}/${fname2}`;
       const a = document.createElement('a');
       a.href = url;
