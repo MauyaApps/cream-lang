@@ -25,7 +25,7 @@
 
   <div class="dl-wrap">
     <h1 data-en="Download Cream" data-ru="Скачать Cream">Download Cream</h1>
-    <div class="version-badge">latest stable — v0.2.2</div>
+    <div class="version-badge">latest stable — 0.2.2</div>
 
     <div class="dl-picker">
       <!-- OS -->
@@ -62,22 +62,22 @@
           <label class="dl-option selected">
             <input type="radio" name="ver" value="0.2.2" checked onchange="updateBtn()"/>
             <span class="dl-option-icon">⭐</span>
-            <div><div class="dl-option-text">v0.2.2</div><div class="dl-option-sub" data-en="Latest stable" data-ru="Последняя стабильная">Latest stable</div></div>
+            <div><div class="dl-option-text">0.2.2</div><div class="dl-option-sub" data-en="Latest stable" data-ru="Последняя стабильная">Latest stable</div></div>
           </label>
           <label class="dl-option">
             <input type="radio" name="ver" value="0.2.1" onchange="updateBtn()"/>
             <span class="dl-option-icon">📦</span>
-            <div><div class="dl-option-text">v0.2.1</div><div class="dl-option-sub" data-en="Previous release" data-ru="Предыдущий релиз">Previous release</div></div>
+            <div><div class="dl-option-text">0.2.1</div><div class="dl-option-sub" data-en="Previous release" data-ru="Предыдущий релиз">Previous release</div></div>
           </label>
           <label class="dl-option">
             <input type="radio" name="ver" value="0.1.1" onchange="updateBtn()"/>
             <span class="dl-option-icon">🗂</span>
-            <div><div class="dl-option-text">v0.1.1</div><div class="dl-option-sub" data-en="Archive" data-ru="Архив">Archive</div></div>
+            <div><div class="dl-option-text">0.1.1</div><div class="dl-option-sub" data-en="Archive" data-ru="Архив">Archive</div></div>
           </label>
           <label class="dl-option">
             <input type="radio" name="ver" value="0.1.0" onchange="updateBtn()"/>
             <span class="dl-option-icon">🗂</span>
-            <div><div class="dl-option-text">v0.1.0</div><div class="dl-option-sub" data-en="Archive · Windows only" data-ru="Архив · только Windows">Archive · Windows only</div></div>
+            <div><div class="dl-option-text">0.1.0</div><div class="dl-option-sub" data-en="Archive · Windows only" data-ru="Архив · только Windows">Archive · Windows only</div></div>
           </label>
         </div>
       </div>
@@ -95,6 +95,8 @@
     </a>
   </div>
 
+  <footer><span>© 2025 MauyaApps</span></footer>
+
   <script src="nav.js"></script>
   <script>
     const RELEASE_BASE = 'https://github.com/download';
@@ -110,20 +112,14 @@
       const btn = document.getElementById('dl-btn');
       const label = document.getElementById('dl-label');
 
-      // Визуальное выделение выбранной опции
+      // Подсветка выбранных опций
       document.querySelectorAll('.dl-option').forEach(opt => opt.classList.remove('selected'));
       document.querySelectorAll('input:checked').forEach(input => input.parentElement.classList.add('selected'));
 
-      let filename = "";
-      if (os === 'android') {
-        filename = "app-release.apk"; // Ваше имя файла в GitHub
-      } else {
-        filename = `cream-${ver}-${os}${EXT[os]}`;
-      }
-
+      let filename = (os === 'android') ? "app-release.apk" : `cream-${ver}-${os}${EXT[os]}`;
       label.innerText = `Download ${filename}`;
 
-      // Проверка на доступность версии для выбранной ОС
+      // Блокировка версий, доступных только для Windows
       if (WINDOWS_ONLY.includes(ver) && os !== 'windows') {
         btn.disabled = true;
         label.innerText = "Not available for this OS";
@@ -135,13 +131,17 @@
     function doDownload() {
       const ver = getVer();
       const os = getOS();
+      
+      // Формируем имя файла
       let filename = (os === 'android') ? "app-release.apk" : `cream-${ver}-${os}${EXT[os]}`;
       
-      const finalUrl = `${RELEASE_BASE}/v${ver}/${filename}`;
+      // Ссылка БЕЗ буквы "v" перед ${ver}, так как тег в GitHub — 0.2.2
+      const finalUrl = `${RELEASE_BASE}/${ver}/${filename}`;
+      
       window.location.href = finalUrl;
     }
 
-    // Запуск при загрузке
+    // Инициализация при загрузке страницы
     window.onload = updateBtn;
   </script>
 </body>
