@@ -1,17 +1,15 @@
 name: Build Cream
 
 on:
-  release:
-    types: [ created ]
+  push:
+    tags:
+      - '*'
   workflow_dispatch:
 
 jobs:
 
-  # ══════════════════════════════════════════
-  #  Windows — cream.exe + cream-ide.exe
-  # ══════════════════════════════════════════
+  # ── Windows ──────────────────────────────────────────────
   build-windows:
-    name: Build Windows
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,34 +17,27 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      - name: Install dependencies
-        run: pip install pyinstaller PyQt6
+      - name: Install PyInstaller
+        run: pip install pyinstaller pyqt6
 
       - name: Build cream.exe
-        run: pyinstaller --onefile --name cream cream.py
+        run: pyinstaller --onefile --noconsole --icon=cream.ico --name=cream cream.py
 
-      - name: Build cream-ide.exe
-        run: pyinstaller --onefile --noconsole --name cream-ide cream_ide_standalone.py
+      - name: Build cream-ide-windows.exe
+        run: pyinstaller --onefile --noconsole --icon=cream.ico --name=cream-ide-windows cream_ide_standalone.py
 
-      - name: Upload cream
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cream-windows
-          path: dist/cream.exe
+          name: windows-build
+          path: |
+            dist/cream.exe
+            dist/cream-ide-windows.exe
 
-      - name: Upload cream-ide
-        uses: actions/upload-artifact@v4
-        with:
-          name: cream-ide-windows
-          path: dist/cream-ide.exe
-
-  # ══════════════════════════════════════════
-  #  Linux — cream + cream-ide
-  # ══════════════════════════════════════════
+  # ── Linux ─────────────────────────────────────────────────
   build-linux:
-    name: Build Linux
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,36 +45,34 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
-          pip install pyinstaller PyQt6
-          sudo apt-get install -y libxcb-cursor0 libxcb-xinerama0
+          pip install pyinstaller
+          sudo apt-get install -y python3-pyqt6
 
-      - name: Build cream
-        run: pyinstaller --onefile --name cream cream.py
+      - name: Build cream-linux
+        run: pyinstaller --onefile --name=cream-linux cream.py
 
-      - name: Build cream-ide
-        run: pyinstaller --onefile --noconsole --name cream-ide cream_ide_standalone.py
+      - name: Build cream-ide-linux
+        run: pyinstaller --onefile --name=cream-ide-linux cream_ide_standalone.py
 
-      - name: Upload cream
+      - name: Make executable
+        run: |
+          chmod +x dist/cream-linux
+          chmod +x dist/cream-ide-linux
+
+      - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cream-linux
-          path: dist/cream
+          name: linux-build
+          path: |
+            dist/cream-linux
+            dist/cream-ide-linux
 
-      - name: Upload cream-ide
-        uses: actions/upload-artifact@v4
-        with:
-          name: cream-ide-linux
-          path: dist/cream-ide
-
-  # ══════════════════════════════════════════
-  #  macOS — cream + cream-ide
-  # ══════════════════════════════════════════
+  # ── macOS ─────────────────────────────────────────────────
   build-macos:
-    name: Build macOS
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -91,69 +80,90 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install pyinstaller PyQt6
+        run: pip install pyinstaller pyqt6
 
-      - name: Build cream
-        run: pyinstaller --onefile --name cream cream.py
+      - name: Build cream-macos
+        run: pyinstaller --onefile --name=cream-macos cream.py
 
-      - name: Build cream-ide
-        run: pyinstaller --onefile --noconsole --name cream-ide cream_ide_standalone.py
+      - name: Build cream-ide-macos
+        run: pyinstaller --onefile --name=cream-ide-macos cream_ide_standalone.py
 
-      - name: Upload cream
+      - name: Make executable
+        run: |
+          chmod +x dist/cream-macos
+          chmod +x dist/cream-ide-macos
+
+      - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cream-macos
-          path: dist/cream
+          name: macos-build
+          path: |
+            dist/cream-macos
+            dist/cream-ide-macos
 
-      - name: Upload cream-ide
-        uses: actions/upload-artifact@v4
-        with:
-          name: cream-ide-macos
-          path: dist/cream-ide
-
-  # ══════════════════════════════════════════
-  #  Публикация релиза
-  # ══════════════════════════════════════════
-  release:
-    name: Publish Release
+  # ── Android ───────────────────────────────────────────────
+  build-android:
     runs-on: ubuntu-latest
-    needs: [build-windows, build-linux, build-macos]
-    if: github.event_name == 'release'
-    permissions:
-      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.6'
+          channel: 'stable'
+
+      - name: Get Flutter dependencies
+        working-directory: cream_ide_android
+        run: flutter pub get
+
+      - name: Build Android APK
+        working-directory: cream_ide_android
+        run: flutter build apk --release
+
+      - name: Rename APK
+        run: |
+          cp cream_ide_android/build/app/outputs/flutter-apk/app-release.apk \
+             cream-ide-android.apk
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build
+          path: cream-ide-android.apk
+
+  # ── Release ───────────────────────────────────────────────
+  release:
+    needs: [build-windows, build-linux, build-macos, build-android]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
-        with:
-          path: release/
 
-      - name: Prepare release files
-        run: |
-          mkdir -p final
-          cp release/cream-windows/cream.exe        final/cream-windows.exe
-          cp release/cream-linux/cream               final/cream-linux
-          cp release/cream-macos/cream               final/cream-macos
-          cp release/cream-ide-windows/cream-ide.exe final/cream-ide-windows.exe
-          cp release/cream-ide-linux/cream-ide        final/cream-ide-linux
-          cp release/cream-ide-macos/cream-ide        final/cream-ide-macos
-          chmod +x final/cream-linux final/cream-macos
-          chmod +x final/cream-ide-linux final/cream-ide-macos
-          ls -la final/
-
-      - name: Upload to release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          name: "Cream ${{ github.ref_name }}"
+          body_path: CHANGELOG.md
           files: |
-            final/cream-windows.exe
-            final/cream-linux
-            final/cream-macos
-            final/cream-ide-windows.exe
-            final/cream-ide-linux
-            final/cream-ide-macos
+            windows-build/cream.exe
+            windows-build/cream-ide-windows.exe
+            linux-build/cream-linux
+            linux-build/cream-ide-linux
+            macos-build/cream-macos
+            macos-build/cream-ide-macos
+            android-build/cream-ide-android.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
