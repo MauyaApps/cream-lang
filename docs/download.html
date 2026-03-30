@@ -200,7 +200,7 @@
     function doDownload() {
       const os = getOS(), ver = getVer();
       const fname = getFileName(os, ver);
-      const url = `${RELEASE_BASE}/v${ver}/${fname}`;
+      const url = `${RELEASE_BASE}/${ver}/${fname}`;
       const a = document.createElement('a');
       a.href = url;
       a.download = fname;
