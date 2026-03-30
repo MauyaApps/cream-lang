@@ -140,6 +140,15 @@
       const winOnly = ver === '0.1.0';
       const androidAvail = ver === '0.2.2';
 
+      // IDE checkbox — only available for 0.2.1 and 0.2.2
+      const ideLabel = document.getElementById('chk-ide')?.closest('label');
+      const ideAvailCheck = (ver === '0.2.1' || ver === '0.2.2');
+      if (ideLabel) {
+        ideLabel.style.opacity = ideAvailCheck ? '' : '0.35';
+        ideLabel.style.pointerEvents = ideAvailCheck ? '' : 'none';
+        ideLabel.title = ideAvailCheck ? '' : 'IDE available from v0.2.1';
+      }
+
       // Linux and macOS — unavailable for 0.1.0 only
       ['linux', 'macos'].forEach(os => {
         const label = document.getElementById('os-' + os);
@@ -184,10 +193,12 @@
 
     function getFileName(os, ver) {
       if (os === 'android') return 'app-release.apk';
-      const ide = document.getElementById('chk-ide')?.checked;
-      // 0.1.0: only cream.exe
+      // IDE only available in 0.2.1 and 0.2.2
+      const ideAvail = (ver === '0.2.1' || ver === '0.2.2');
+      const ide = ideAvail && document.getElementById('chk-ide')?.checked;
+      // 0.1.0: only cream.exe, Windows only
       if (ver === '0.1.0') return 'cream.exe';
-      // 0.2.2+: cream.exe (not cream-windows.exe)
+      // Windows filename differs: 0.2.2 uses cream.exe, others use cream-windows.exe
       if (os === 'windows') {
         if (ide) return 'cream-ide-windows.exe';
         return ver === '0.2.2' ? 'cream.exe' : 'cream-windows.exe';
