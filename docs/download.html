@@ -172,10 +172,7 @@
       }
 
       const os = getOS();
-      const fname = `cream-${ver}-${os}${EXT[os] || ''}`;
-      const isAndroid2 = os === 'android';
-      const displayName = isAndroid2 ? 'app-release.apk' : fname;
-      document.getElementById('dl-label').textContent = `Download ${displayName}`;
+      document.getElementById('dl-label').textContent = `Download ${getFileName(os)}`;
       document.getElementById('dl-status').textContent = '';
 
       // Highlight selected options
@@ -185,13 +182,19 @@
       });
     }
 
+    function getFileName(os) {
+      if (os === 'android') return 'app-release.apk';
+      const ide = document.getElementById('chk-ide')?.checked;
+      if (os === 'windows') return ide ? 'cream-ide-windows.exe' : 'cream-windows.exe';
+      if (os === 'linux')   return ide ? 'cream-ide-linux'       : 'cream-linux';
+      if (os === 'macos')   return ide ? 'cream-ide-macos'       : 'cream-macos';
+      return `cream-${os}`;
+    }
+
     function doDownload() {
       const os = getOS(), ver = getVer();
-      const fname = `cream-${ver}-${os}${EXT[os] || ''}`;
-      // Android uses a different filename pattern
-      const isAndroid = os === 'android';
-      const fname2 = isAndroid ? `app-release.apk` : fname;
-      const url = `${RELEASE_BASE}/v${ver}/${fname2}`;
+      const fname = getFileName(os);
+      const url = `${RELEASE_BASE}/v${ver}/${fname}`;
       const a = document.createElement('a');
       a.href = url;
       a.download = fname;
