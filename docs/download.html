@@ -172,7 +172,7 @@
       }
 
       const os = getOS();
-      document.getElementById('dl-label').textContent = `Download ${getFileName(os)}`;
+      document.getElementById('dl-label').textContent = `Download ${getFileName(os, ver)}`;
       document.getElementById('dl-status').textContent = '';
 
       // Highlight selected options
@@ -182,18 +182,24 @@
       });
     }
 
-    function getFileName(os) {
+    function getFileName(os, ver) {
       if (os === 'android') return 'app-release.apk';
       const ide = document.getElementById('chk-ide')?.checked;
-      if (os === 'windows') return ide ? 'cream-ide-windows.exe' : 'cream-windows.exe';
-      if (os === 'linux')   return ide ? 'cream-ide-linux'       : 'cream-linux';
-      if (os === 'macos')   return ide ? 'cream-ide-macos'       : 'cream-macos';
+      // 0.1.0: only cream.exe
+      if (ver === '0.1.0') return 'cream.exe';
+      // 0.2.2+: cream.exe (not cream-windows.exe)
+      if (os === 'windows') {
+        if (ide) return 'cream-ide-windows.exe';
+        return ver === '0.2.2' ? 'cream.exe' : 'cream-windows.exe';
+      }
+      if (os === 'linux')  return ide ? 'cream-ide-linux' : 'cream-linux';
+      if (os === 'macos')  return ide ? 'cream-ide-macos' : 'cream-macos';
       return `cream-${os}`;
     }
 
     function doDownload() {
       const os = getOS(), ver = getVer();
-      const fname = getFileName(os);
+      const fname = getFileName(os, ver);
       const url = `${RELEASE_BASE}/v${ver}/${fname}`;
       const a = document.createElement('a');
       a.href = url;
