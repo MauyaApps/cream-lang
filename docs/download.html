@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Download — Cream Language</title>
   <link rel="stylesheet" href="style.css"/>
-  <link href="https://fonts.googleapis.com" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
 </head>
 <body>
   <div class="scanlines"></div><div class="noise"></div>
@@ -22,10 +22,19 @@
       <button class="lang-toggle" onclick="toggleLang()">RU</button>
     </div>
   </nav>
+  <div class="nav-drawer">
+    <a href="index.html" data-en="Home" data-ru="Главная">Home</a>
+    <a href="docs.html" data-en="Docs" data-ru="Документация">Docs</a>
+    <a href="examples.html" data-en="Examples" data-ru="Примеры">Examples</a>
+    <a href="download.html" class="active" data-en="Download" data-ru="Скачать">Download</a>
+    <a href="faq.html">FAQ</a>
+    <a href="guide.html" data-en="Guide PDF" data-ru="Гайд PDF">Guide PDF</a>
+    <div class="drawer-lang"><span data-en="Language:" data-ru="Язык:">Language:</span><button onclick="toggleLang()" class="lang-toggle">RU</button></div>
+  </div>
 
   <div class="dl-wrap">
     <h1 data-en="Download Cream" data-ru="Скачать Cream">Download Cream</h1>
-    <div class="version-badge">latest stable — 0.2.2</div>
+    <div class="version-badge">latest stable — v0.2.2</div>
 
     <div class="dl-picker">
       <!-- OS -->
@@ -62,22 +71,36 @@
           <label class="dl-option selected">
             <input type="radio" name="ver" value="0.2.2" checked onchange="updateBtn()"/>
             <span class="dl-option-icon">⭐</span>
-            <div><div class="dl-option-text">0.2.2</div><div class="dl-option-sub" data-en="Latest stable" data-ru="Последняя стабильная">Latest stable</div></div>
+            <div><div class="dl-option-text">v0.2.2</div><div class="dl-option-sub" data-en="Latest stable" data-ru="Последняя стабильная">Latest stable</div></div>
           </label>
           <label class="dl-option">
             <input type="radio" name="ver" value="0.2.1" onchange="updateBtn()"/>
             <span class="dl-option-icon">📦</span>
-            <div><div class="dl-option-text">0.2.1</div><div class="dl-option-sub" data-en="Previous release" data-ru="Предыдущий релиз">Previous release</div></div>
+            <div><div class="dl-option-text">v0.2.1</div><div class="dl-option-sub" data-en="Previous release" data-ru="Предыдущий релиз">Previous release</div></div>
           </label>
           <label class="dl-option">
             <input type="radio" name="ver" value="0.1.1" onchange="updateBtn()"/>
             <span class="dl-option-icon">🗂</span>
-            <div><div class="dl-option-text">0.1.1</div><div class="dl-option-sub" data-en="Archive" data-ru="Архив">Archive</div></div>
+            <div><div class="dl-option-text">v0.1.1</div><div class="dl-option-sub" data-en="Archive" data-ru="Архив">Archive</div></div>
           </label>
           <label class="dl-option">
             <input type="radio" name="ver" value="0.1.0" onchange="updateBtn()"/>
             <span class="dl-option-icon">🗂</span>
-            <div><div class="dl-option-text">0.1.0</div><div class="dl-option-sub" data-en="Archive · Windows only" data-ru="Архив · только Windows">Archive · Windows only</div></div>
+            <div><div class="dl-option-text">v0.1.0</div><div class="dl-option-sub" data-en="Archive · Windows only" data-ru="Архив · только Windows">Archive · Windows only</div></div>
+          </label>
+        </div>
+
+        <div class="dl-group-label" style="margin-top:1.5rem" data-en="Include" data-ru="Включить">Include</div>
+        <div class="dl-options">
+          <label class="dl-option selected">
+            <input type="checkbox" id="chk-ide" checked onchange="updateBtn()"/>
+            <span class="dl-option-icon">🖥</span>
+            <div><div class="dl-option-text">Cream IDE</div><div class="dl-option-sub">PyQt6 desktop IDE</div></div>
+          </label>
+          <label class="dl-option selected">
+            <input type="checkbox" id="chk-stdlib" checked onchange="updateBtn()"/>
+            <span class="dl-option-icon">📚</span>
+            <div><div class="dl-option-text" data-en="Standard Library" data-ru="Стандартная библиотека">Standard Library</div><div class="dl-option-sub">450+ ops</div></div>
           </label>
         </div>
       </div>
@@ -87,62 +110,100 @@
       <button id="dl-btn" onclick="doDownload()">
         ↓ <span id="dl-label">Download cream-0.2.2-windows.exe</span>
       </button>
+      <div class="dl-status" id="dl-status"></div>
     </div>
 
     <hr class="dl-divider"/>
-    <a href="https://github.com" class="btn-primary" target="_blank">
-        <span data-en="All Releases" data-ru="Все релизы">All Releases</span> →
-    </a>
+    <div class="dl-extra-title" data-en="VS Code Extension" data-ru="Расширение VS Code">VS Code Extension</div>
+    <pre style="background:var(--bg2);border:1px solid var(--border);padding:1rem 1.5rem;font-size:0.8rem;margin-bottom:1rem"><code>ext install MauyaApps.cream-language</code></pre>
+    <a href="https://marketplace.visualstudio.com/items?itemName=MauyaApps.cream-language" class="btn-secondary" target="_blank" style="display:inline-flex" data-en="Open Marketplace →" data-ru="Marketplace →">Open Marketplace →</a>
+    <hr class="dl-divider"/>
+    <div class="dl-extra-title" data-en="All Releases on GitHub" data-ru="Все релизы на GitHub">All Releases on GitHub</div>
+    <p class="download-note" style="margin-bottom:1.5rem" data-en="Browse all versions, changelogs and source archives." data-ru="Все версии, описания изменений и архивы исходников.">Browse all versions, changelogs and source archives.</p>
+    <a href="https://github.com/MauyaApps/cream-lang/releases" class="btn-primary" target="_blank"><span data-en="All Releases" data-ru="Все релизы">All Releases</span> →</a>
   </div>
 
-  <footer><span>© 2025 MauyaApps</span></footer>
-
+  <footer><span>© 2025 MauyaApps</span><span>·</span><a href="https://github.com/MauyaApps/cream-lang" target="_blank">GitHub</a></footer>
   <script src="nav.js"></script>
   <script>
-    const RELEASE_BASE = 'https://github.com/download';
+    const RELEASE_BASE = 'https://github.com/MauyaApps/cream-lang/releases/download';
     const EXT = { windows: '.exe', linux: '', macos: '', android: '.apk' };
-    const WINDOWS_ONLY = ['0.1.0', '0.1.1', '0.2.1'];
+
+    // Versions that only support Windows
+    // version availability handled in updateBtn
 
     function getOS() { return document.querySelector('input[name="os"]:checked')?.value || 'windows'; }
     function getVer() { return document.querySelector('input[name="ver"]:checked')?.value || '0.2.2'; }
 
     function updateBtn() {
       const ver = getVer();
-      const os = getOS();
-      const btn = document.getElementById('dl-btn');
-      const label = document.getElementById('dl-label');
+      const winOnly = ver === '0.1.0';
+      const androidAvail = ver === '0.2.2';
 
-      // Подсветка выбранных опций
-      document.querySelectorAll('.dl-option').forEach(opt => opt.classList.remove('selected'));
-      document.querySelectorAll('input:checked').forEach(input => input.parentElement.classList.add('selected'));
+      // Linux and macOS — unavailable for 0.1.0 only
+      ['linux', 'macos'].forEach(os => {
+        const label = document.getElementById('os-' + os);
+        if (!label) return;
+        const input = label.querySelector('input');
+        if (winOnly) {
+          label.style.opacity = '0.35';
+          label.style.pointerEvents = 'none';
+          label.title = 'Not available for this version / Недоступно';
+          if (input && input.checked) {
+            document.querySelector('input[name="os"][value="windows"]').checked = true;
+          }
+        } else {
+          label.style.opacity = '';
+          label.style.pointerEvents = '';
+          label.title = '';
+        }
+      });
 
-      let filename = (os === 'android') ? "app-release.apk" : `cream-${ver}-${os}${EXT[os]}`;
-      label.innerText = `Download ${filename}`;
-
-      // Блокировка версий, доступных только для Windows
-      if (WINDOWS_ONLY.includes(ver) && os !== 'windows') {
-        btn.disabled = true;
-        label.innerText = "Not available for this OS";
-      } else {
-        btn.disabled = false;
+      // Android — only available for 0.2.2
+      const androidLabel = document.getElementById('os-android');
+      if (androidLabel) {
+        const androidInput = androidLabel.querySelector('input');
+        androidLabel.style.opacity = androidAvail ? '' : '0.35';
+        androidLabel.style.pointerEvents = androidAvail ? '' : 'none';
+        androidLabel.title = androidAvail ? '' : 'Android available in v0.2.2+ only';
+        if (!androidAvail && androidInput && androidInput.checked) {
+          document.querySelector('input[name="os"][value="windows"]').checked = true;
+        }
       }
+
+      const os = getOS();
+      const fname = `cream-${ver}-${os}${EXT[os] || ''}`;
+      const isAndroid2 = os === 'android';
+      const displayName = isAndroid2 ? 'app-release.apk' : fname;
+      document.getElementById('dl-label').textContent = `Download ${displayName}`;
+      document.getElementById('dl-status').textContent = '';
+
+      // Highlight selected options
+      document.querySelectorAll('.dl-option').forEach(el => {
+        const inp = el.querySelector('input');
+        if (inp) el.classList.toggle('selected', !!inp.checked);
+      });
     }
 
     function doDownload() {
-      const ver = getVer();
-      const os = getOS();
-      
-      // Формируем имя файла
-      let filename = (os === 'android') ? "app-release.apk" : `cream-${ver}-${os}${EXT[os]}`;
-      
-      // Ссылка БЕЗ буквы "v" перед ${ver}, так как тег в GitHub — 0.2.2
-      const finalUrl = `${RELEASE_BASE}/${ver}/${filename}`;
-      
-      window.location.href = finalUrl;
+      const os = getOS(), ver = getVer();
+      const fname = `cream-${ver}-${os}${EXT[os] || ''}`;
+      // Android uses a different filename pattern
+      const isAndroid = os === 'android';
+      const fname2 = isAndroid ? `app-release.apk` : fname;
+      const url = `${RELEASE_BASE}/v${ver}/${fname2}`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fname;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      document.getElementById('dl-status').textContent = `↓ Downloading ${fname}…`;
+      setTimeout(() => { document.getElementById('dl-status').textContent = ''; }, 4000);
     }
 
-    // Инициализация при загрузке страницы
-    window.onload = updateBtn;
+    document.addEventListener('DOMContentLoaded', updateBtn);
   </script>
 </body>
 </html>
