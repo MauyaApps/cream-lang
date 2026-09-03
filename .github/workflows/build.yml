@@ -6,7 +6,6 @@ const vscode = require('vscode');
 function activate(context) {
     console.log('Cream Language extension activated');
 
-    // Status bar item
     const statusBar = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Left, 100
     );
@@ -24,7 +23,6 @@ function activate(context) {
         })
     );
 
-    // Run Cream file command
     const runCmd = vscode.commands.registerCommand('cream.runFile', () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) return;
@@ -34,8 +32,7 @@ function activate(context) {
         terminal.show();
         terminal.sendText(`cream "${file}"`);
     });
-
-    // New Cream file command
+    
     const newCmd = vscode.commands.registerCommand('cream.newFile', async () => {
         const doc = await vscode.workspace.openTextDocument({
             language: 'cream',
