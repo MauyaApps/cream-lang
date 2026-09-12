@@ -288,7 +288,6 @@ class StructDef(Node):
         self.name = name; self.fields = fields
 
 class Import(Node):
-    """import "file.cream" — загрузить внешний .cream файл"""
     def __init__(self, path): self.path = path
 
 class ParseError(Exception):
@@ -651,7 +650,7 @@ class Parser:
         return TableLiteral(pairs)
 
     def parse_import(self):
-        self.advance()  # "import"
+        self.advance()
         path = self.expect(TT.STRING).value
         self.skip_newlines()
         return Import(path)
@@ -665,7 +664,6 @@ class Parser:
         return Program(body)
 
 class Environment:
-    """Хранит переменные. Поддерживает вложенные области видимости."""
     def __init__(self, parent=None):
         self.vars   = {}
         self.parent = parent
@@ -681,7 +679,6 @@ class Environment:
         self.vars[name] = value
 
     def assign(self, name, value):
-        """Присваивает в ту область видимости где переменная уже есть."""
         if name in self.vars:
             self.vars[name] = value
         elif self.parent:
@@ -690,37 +687,33 @@ class Environment:
             self.vars[name] = value
 
 class CreamFunction:
-    """Пользовательская функция (action)."""
     def __init__(self, name, params, body, closure):
         self.name    = name
-        self.params  = params   # [(name, default_node), ...]
+        self.params  = params
         self.body    = body
-        self.closure = closure  # среда где была определена
+        self.closure = closure
 
     def __repr__(self):
         return f"<action {self.name}>"
 
 class CreamStruct:
-    """Экземпляр структуры."""
     def __init__(self, type_name, fields):
         self.type_name = type_name
-        self.fields    = fields  # dict
+        self.fields    = fields
 
     def __repr__(self):
         items = ", ".join(f"{k}={repr(v)}" for k, v in self.fields.items())
         return f"{self.type_name}({items})"
 
 class CreamStructType:
-    """Тип структуры (конструктор)."""
     def __init__(self, name, fields):
         self.name   = name
-        self.fields = fields  # [(name, type, default_node), ...]
+        self.fields = fields
 
     def __repr__(self):
         return f"<struct {self.name}>"
 
 class CreamLambda:
-    """Лямбда-функция: x → expr."""
     def __init__(self, param, body, closure):
         self.param   = param
         self.body    = body
@@ -739,7 +732,6 @@ class Interpreter:
     def __init__(self):
         self.global_env = Environment()
         self._setup_builtins()
-
 
     def _setup_builtins(self):
         import math as _math
@@ -868,7 +860,7 @@ class Interpreter:
                 return _random.sample(args[1], int(args[2]))
             return _random.random()
         env.set("rand", cream_rand)
-        
+
         def cream_stats(args):
             lst = args[0]
             if not lst: return None
@@ -944,7 +936,7 @@ class Interpreter:
                 return [val] * n
             raise CreamRuntimeError(f"list: неизвестная операция '{op}'")
         env.set("list", cream_list)
-        
+
         def cream_table(args):
             t = dict(args[0]) if isinstance(args[0], dict) else {}
             if len(args) == 1: return t
@@ -982,7 +974,7 @@ class Interpreter:
             }
             fn = conv.get((from_, to_))
             if fn: return round(fn(x), 6)
-            raise CreamRuntimeError(f"convert: не знаю как {from_} → {to_}")
+            raise CreamRuntimeError(f"convert: не знаю как {from_} -> {to_}")
         env.set("convert", cream_convert)
 
         def cream_date(args):
@@ -1168,7 +1160,7 @@ class Interpreter:
                 start = x.find(a); end = x.find(b, start + len(a))
                 if start == -1 or end == -1: return ""
                 return x[start + len(a):end]
-            if op == "match":      
+            if op == "match":
                 m = _re.search(str(args[2]), x)
                 return m.group(0) if m else ""
             if op == "match_all":  return _re.findall(str(args[2]), x)
@@ -1256,7 +1248,7 @@ class Interpreter:
             x = args[0] if args else ""
             if x == "line":
                 n = int(args[1]) if len(args) > 1 else 40
-                ch = str(args[2]) if len(args) > 2 else "─"
+                ch = str(args[2]) if len(args) > 2 else "-"
                 print(ch * n); return None
             if x == "clear": print("\033[H\033[J", end=""); return None
             if len(args) == 1: print(cs(x)); return None
@@ -1310,9 +1302,9 @@ class Interpreter:
                     with _req.urlopen(req, timeout=10) as resp:
                         return resp.read().decode("utf-8", errors="replace")
                 except _uerr.HTTPError as e:
-                    raise CreamRuntimeError(f"net: HTTP {e.code} — {e.reason}")
+                    raise CreamRuntimeError(f"net: HTTP {e.code} - {e.reason}")
                 except _uerr.URLError as e:
-                    raise CreamRuntimeError(f"net: ошибка — {e.reason}")
+                    raise CreamRuntimeError(f"net: error - {e.reason}")
 
             if op == "get":     return do_request("GET")
             if op == "json":
@@ -1354,7 +1346,6 @@ class Interpreter:
         env.set("net", cream_net)
 
     def _cream_str(self, value):
-        """Преобразует значение Cream в строку."""
         if value is None:       return "empty"
         if value is True:       return "yes"
         if value is False:      return "no"
@@ -1368,12 +1359,12 @@ class Interpreter:
         return str(value)
 
     def _interpolate(self, s, env):
-        """Интерполяция строк: "Hello, {name}" → "Hello, Ivan"."""
+        import re as _re2
         def replace(m):
             var_name = m.group(1)
             try:    return self._cream_str(env.get(var_name))
             except: return m.group(0)
-        return re.sub(r'\{(\w+)\}', replace, s)
+        return _re2.sub(r'\{(\w+)\}', replace, s)
 
     def exec_block(self, stmts, env):
         for stmt in stmts:
@@ -1547,7 +1538,7 @@ class Interpreter:
 
         if callable(callee) and not isinstance(callee, (CreamFunction, CreamLambda, CreamStructType)):
             return callee(args)
-            
+
         if isinstance(callee, CreamFunction):
             local = Environment(callee.closure)
             for i, (param_name, param_default) in enumerate(callee.params):
@@ -1621,7 +1612,6 @@ class Interpreter:
         return value
 
     def _apply_fn(self, fn, value, env):
-        """Применяет функцию к одному значению."""
         if isinstance(fn, CreamLambda):
             local = Environment(fn.closure)
             local.set(fn.param, value)
@@ -1639,7 +1629,6 @@ class Interpreter:
         raise CreamRuntimeError(f"Не является функцией: {fn}")
 
     def _apply_fn2(self, fn, a, b, env):
-        """Применяет функцию к двум значениям (для reduce)."""
         if isinstance(fn, CreamLambda):
             local = Environment(fn.closure)
             local.set(fn.param, a)
@@ -1647,14 +1636,6 @@ class Interpreter:
         raise CreamRuntimeError("reduce требует лямбду")
 
     def _exec_import(self, path, env):
-        """
-        import "file.cream"
-        import "utils/helpers.cream"
-
-        Загружает и выполняет внешний .cream файл.
-        Все его переменные и функции становятся доступны
-        в текущей области видимости.
-        """
         import os as _os
 
         if not _os.path.isabs(path):
@@ -1667,20 +1648,20 @@ class Interpreter:
             full_path += '.cream'
 
         if not _os.path.exists(full_path):
-            raise CreamRuntimeError(f"import: файл не найден — '{full_path}'")
+            raise CreamRuntimeError(f"import: файл не найден - '{full_path}'")
 
         if not hasattr(self, '_imported'):
             self._imported = set()
 
         if full_path in self._imported:
-            return 
+            return
         self._imported.add(full_path)
 
         try:
             with open(full_path, 'r', encoding='utf-8') as f:
                 source = f.read()
         except Exception as e:
-            raise CreamRuntimeError(f"import: не удалось прочитать '{full_path}' — {e}")
+            raise CreamRuntimeError(f"import: не удалось прочитать '{full_path}' - {e}")
 
         tokens = Lexer(source).tokenize()
         ast    = Parser(tokens).parse()
@@ -1701,15 +1682,15 @@ def run_file(path):
         interp = Interpreter()
         interp.run(source, base_dir=_os.path.dirname(_os.path.abspath(path)))
     except FileNotFoundError:
-        print(f"❌ Файл не найден: {path}")
+        print(f"File not found: {path}")
     except (LexerError, ParseError, CreamRuntimeError) as e:
-        print(f"❌ {e}")
+        print(f"{e}")
 
 def repl():
     print("=" * 45)
     print("  Cream Language v0.1")
     print("  Type Cream code and press Enter.")
-    print("  Type \'exit\' to quit.")
+    print("  Type 'exit' to quit.")
     print("=" * 45)
     print()
     interp = Interpreter()
@@ -1730,7 +1711,7 @@ def repl():
                     try:
                         interp.run(code)
                     except (LexerError, ParseError, CreamRuntimeError) as e:
-                        print(f"❌ {e}")
+                        print(f"{e}")
                 continue
 
             stripped = line.strip()
@@ -1744,10 +1725,10 @@ def repl():
                 try:
                     interp.run(line)
                 except (LexerError, ParseError, CreamRuntimeError) as e:
-                    print(f"❌ {e}")
+                    print(f"{e}")
 
         except (LexerError, ParseError, CreamRuntimeError) as e:
-            print(f"❌ {e}")
+            print(f"{e}")
             buffer = []
         except KeyboardInterrupt:
             if buffer:
@@ -1756,742 +1737,675 @@ def repl():
             else:
                 print("\nGoodbye!")
                 break
-        except EOFError:
+        except (EOFError, OSError):
             print("\nGoodbye!")
             break
 
-import sys
-import os
-import re
-import subprocess
+try:
+    from PyQt6.QtWidgets import (
+        QApplication, QMainWindow, QWidget, QSplitter,
+        QVBoxLayout, QHBoxLayout, QTextEdit, QPlainTextEdit,
+        QToolBar, QStatusBar, QLabel, QPushButton,
+        QFileDialog, QMessageBox, QFrame, QSizePolicy,
+    )
+    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QRect, QSize
+    from PyQt6.QtGui import (
+        QFont, QColor, QPalette, QSyntaxHighlighter,
+        QTextCharFormat, QTextCursor, QPainter, QAction,
+        QKeySequence, QIcon, QPixmap,
+    )
+    HAS_PYQT6 = True
+except ImportError:
+    HAS_PYQT6 = False
 
-from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QSplitter,
-    QVBoxLayout, QHBoxLayout, QTextEdit, QPlainTextEdit,
-    QToolBar, QStatusBar, QLabel, QPushButton,
-    QFileDialog, QMessageBox, QFrame, QSizePolicy,
-)
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QRect, QSize
-from PyQt6.QtGui import (
-    QFont, QColor, QPalette, QSyntaxHighlighter,
-    QTextCharFormat, QTextCursor, QPainter, QAction,
-    QKeySequence, QIcon, QPixmap,
-)
+if HAS_PYQT6:
+    import sys
+    import os
+    import re
+    import subprocess
 
+    C = {
+        "bg":      "#0F0F17",
+        "bg2":     "#16161F",
+        "bg3":     "#1E1E2E",
+        "border":  "#2A2A3E",
+        "text":    "#CDD6F4",
+        "dim":     "#6C7086",
+        "accent":  "#C17D3C",
+        "accent2": "#FFB347",
+        "green":   "#A6E3A1",
+        "red":     "#F38BA8",
+        "blue":    "#89B4FA",
+        "purple":  "#CBA6F7",
+        "yellow":  "#F9E2AF",
+        "cyan":    "#89DCEB",
+        "select":  "#313244",
+        "line_bg": "#13131C",
+    }
 
-C = {
-    "bg":      "#0F0F17",
-    "bg2":     "#16161F",
-    "bg3":     "#1E1E2E",
-    "border":  "#2A2A3E",
-    "text":    "#CDD6F4",
-    "dim":     "#6C7086",
-    "accent":  "#C17D3C",
-    "accent2": "#FFB347",
-    "green":   "#A6E3A1",
-    "red":     "#F38BA8",
-    "blue":    "#89B4FA",
-    "purple":  "#CBA6F7",
-    "yellow":  "#F9E2AF",
-    "cyan":    "#89DCEB",
-    "select":  "#313244",
-    "line_bg": "#13131C",
-}
+    class CreamHighlighter(QSyntaxHighlighter):
+        def __init__(self, document):
+            super().__init__(document)
+            self.rules = []
 
-class CreamHighlighter(QSyntaxHighlighter):
-    def __init__(self, document):
-        super().__init__(document)
-        self.rules = []
+            def rule(pattern, color, bold=False, italic=False):
+                fmt = QTextCharFormat()
+                fmt.setForeground(QColor(color))
+                if bold:   fmt.setFontWeight(700)
+                if italic: fmt.setFontItalic(True)
+                self.rules.append((re.compile(pattern), fmt))
 
-        def rule(pattern, color, bold=False, italic=False):
-            fmt = QTextCharFormat()
-            fmt.setForeground(QColor(color))
-            if bold:   fmt.setFontWeight(700)
-            if italic: fmt.setFontItalic(True)
-            self.rules.append((re.compile(pattern), fmt))
+            rule(r'--[^\n]*',          C["dim"],    italic=True)
+            rule(r'"[^"]*"',           C["green"])
+            rule(r'\b(if|else|or if|for each|in|repeat|while|action|task|return|wait|together|try|on error|struct|import|say)\b', C["purple"], bold=True)
+            rule(r'\b(yes|no|empty|PI|E|INF)\b', C["yellow"])
+            rule(r'\b(math|num|rand|stats|convert|str_|text_|regex|list|table|file|folder|sys_|encode|net|date|print_|length|sum|min|max|abs|round|range|sort|reverse|first|last|join|split|upper|lower|trim|contains|number|bool|input)\b(?=\s*\()', C["cyan"])
+            rule(r'\b-?\d+\.?\d*\b',   C["yellow"])
+            rule(r'(→|->)',            C["accent"], bold=True)
+            rule(r'\|',                C["accent"])
+            rule(r'\{[^}]+\}',         C["accent2"])
+            rule(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\s*(?=\()', C["blue"])
 
-        rule(r'--[^\n]*',          C["dim"],    italic=True)
-        rule(r'"[^"]*"',           C["green"])
-        rule(r'\b(if|else|or if|for each|in|repeat|while|action|task|return|wait|together|try|on error|struct|import|say)\b', C["purple"], bold=True)
-        rule(r'\b(yes|no|empty|PI|E|INF)\b', C["yellow"])
-        rule(r'\b(math|num|rand|stats|convert|str_|text_|regex|list|table|file|folder|sys_|encode|net|date|print_|length|sum|min|max|abs|round|range|sort|reverse|first|last|join|split|upper|lower|trim|contains|number|bool|input)\b(?=\s*\()', C["cyan"])
-        rule(r'\b-?\d+\.?\d*\b',   C["yellow"])
-        rule(r'(→|->)',            C["accent"], bold=True)
-        rule(r'\|',                C["accent"])
-        rule(r'\{[^}]+\}',         C["accent2"])
-        rule(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\s*(?=\()', C["blue"])
+        def highlightBlock(self, text):
+            for pattern, fmt in self.rules:
+                for m in pattern.finditer(text):
+                    self.setFormat(m.start(), m.end() - m.start(), fmt)
 
-    def highlightBlock(self, text):
-        for pattern, fmt in self.rules:
-            for m in pattern.finditer(text):
-                self.setFormat(m.start(), m.end() - m.start(), fmt)
+    class LineNumberArea(QWidget):
+        def __init__(self, editor):
+            super().__init__(editor)
+            self.editor = editor
 
-class LineNumberArea(QWidget):
-    def __init__(self, editor):
-        super().__init__(editor)
-        self.editor = editor
+        def sizeHint(self):
+            return QSize(self.editor.line_number_width(), 0)
 
-    def sizeHint(self):
-        return QSize(self.editor.line_number_width(), 0)
+        def paintEvent(self, event):
+            self.editor.paint_line_numbers(event)
 
-    def paintEvent(self, event):
-        self.editor.paint_line_numbers(event)
+    class CodeEditor(QPlainTextEdit):
+        def __init__(self):
+            super().__init__()
+            self.line_number_area = LineNumberArea(self)
+            self.blockCountChanged.connect(self.update_line_number_width)
+            self.updateRequest.connect(self.update_line_number_area)
+            self.update_line_number_width(0)
 
+        def line_number_width(self):
+            digits = len(str(max(1, self.blockCount())))
+            return 16 + self.fontMetrics().horizontalAdvance('9') * digits
 
-class CodeEditor(QPlainTextEdit):
-    def __init__(self):
-        super().__init__()
-        self.line_number_area = LineNumberArea(self)
-        self.blockCountChanged.connect(self.update_line_number_width)
-        self.updateRequest.connect(self.update_line_number_area)
-        self.update_line_number_width(0)
+        def update_line_number_width(self, _=0):
+            self.setViewportMargins(self.line_number_width(), 0, 0, 0)
 
-    def line_number_width(self):
-        digits = len(str(max(1, self.blockCount())))
-        return 16 + self.fontMetrics().horizontalAdvance('9') * digits
+        def update_line_number_area(self, rect, dy):
+            if dy:
+                self.line_number_area.scroll(0, dy)
+            else:
+                self.line_number_area.update(0, rect.y(), self.line_number_area.width(), rect.height())
+            if rect.contains(self.viewport().rect()):
+                self.update_line_number_width()
 
-    def update_line_number_width(self, _=0):
-        self.setViewportMargins(self.line_number_width(), 0, 0, 0)
+        def resizeEvent(self, event):
+            super().resizeEvent(event)
+            cr = self.contentsRect()
+            self.line_number_area.setGeometry(QRect(cr.left(), cr.top(), self.line_number_width(), cr.height()))
 
-    def update_line_number_area(self, rect, dy):
-        if dy:
-            self.line_number_area.scroll(0, dy)
-        else:
-            self.line_number_area.update(0, rect.y(), self.line_number_area.width(), rect.height())
-        if rect.contains(self.viewport().rect()):
-            self.update_line_number_width()
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        cr = self.contentsRect()
-        self.line_number_area.setGeometry(QRect(cr.left(), cr.top(), self.line_number_width(), cr.height()))
-
-    def paint_line_numbers(self, event):
-        painter = QPainter(self.line_number_area)
-        painter.fillRect(event.rect(), QColor(C["line_bg"]))
-        block = self.firstVisibleBlock()
-        block_num = block.blockNumber()
-        top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
-        bottom = top + int(self.blockBoundingRect(block).height())
-        while block.isValid() and top <= event.rect().bottom():
-            if block.isVisible() and bottom >= event.rect().top():
-                painter.setPen(QColor(C["dim"]))
-                painter.setFont(self.font())
-                painter.drawText(
-                    0, top, self.line_number_area.width() - 6,
-                    self.fontMetrics().height(),
-                    Qt.AlignmentFlag.AlignRight,
-                    str(block_num + 1)
-                )
-            block = block.next()
-            top = bottom
+        def paint_line_numbers(self, event):
+            painter = QPainter(self.line_number_area)
+            painter.fillRect(event.rect(), QColor(C["line_bg"]))
+            block = self.firstVisibleBlock()
+            block_num = block.blockNumber()
+            top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
             bottom = top + int(self.blockBoundingRect(block).height())
-            block_num += 1
+            while block.isValid() and top <= event.rect().bottom():
+                if block.isVisible() and bottom >= event.rect().top():
+                    painter.setPen(QColor(C["dim"]))
+                    painter.setFont(self.font())
+                    painter.drawText(
+                        0, top, self.line_number_area.width() - 6,
+                        self.fontMetrics().height(),
+                        Qt.AlignmentFlag.AlignRight,
+                        str(block_num + 1)
+                    )
+                block = block.next()
+                top = bottom
+                bottom = top + int(self.blockBoundingRect(block).height())
+                block_num += 1
 
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Tab:
-            self.textCursor().insertText("    ")
-            return
-        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            line = self.textCursor().block().text()
-            indent = " " * (len(line) - len(line.lstrip()))
-            starters = ("if ","else","or if","for each","repeat ","while ","action ","task ","try","on error","struct ")
-            if any(line.strip().startswith(k) for k in starters):
-                indent += "    "
+        def keyPressEvent(self, event):
+            if event.key() == Qt.Key.Key_Tab:
+                self.textCursor().insertText("    ")
+                return
+            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                line = self.textCursor().block().text()
+                indent = " " * (len(line) - len(line.lstrip()))
+                starters = ("if ","else","or if","for each","repeat ","while ","action ","task ","try","on error","struct ")
+                if any(line.strip().startswith(k) for k in starters):
+                    indent += "    "
+                super().keyPressEvent(event)
+                self.textCursor().insertText(indent)
+                return
             super().keyPressEvent(event)
-            self.textCursor().insertText(indent)
-            return
-        super().keyPressEvent(event)
 
-class RunOutputWindow(QWidget):
-    def __init__(self, filename, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle(f"Cream — {filename}")
-        self.resize(600, 400)
-        self.setMinimumSize(400, 300)
-        self.setStyleSheet(f"""
-            QWidget {{
-                background: {C['bg2']};
-                color: {C['text']};
-            }}
-        """)
+    class RunOutputWindow(QWidget):
+        def __init__(self, filename, parent=None):
+            super().__init__(parent)
+            self.setWindowTitle(f"Cream - {filename}")
+            self.resize(600, 400)
+            self.setMinimumSize(400, 300)
+            self.setStyleSheet(f"QWidget {{ background: {C['bg2']}; color: {C['text']}; }}")
 
-        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cream.ico")
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
+            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cream.ico")
+            if os.path.exists(icon_path):
+                self.setWindowIcon(QIcon(icon_path))
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+            layout = QVBoxLayout(self)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(0)
 
-        header = QWidget()
-        header.setFixedHeight(32)
-        header.setStyleSheet(f"background: {C['bg3']}; border-bottom: 1px solid {C['border']};")
-        hl = QHBoxLayout(header)
-        hl.setContentsMargins(12, 0, 8, 0)
+            header = QWidget()
+            header.setFixedHeight(32)
+            header.setStyleSheet(f"background: {C['bg3']}; border-bottom: 1px solid {C['border']};")
+            hl = QHBoxLayout(header)
+            hl.setContentsMargins(12, 0, 8, 0)
 
-        title = QLabel(f"▶  Running: {filename}")
-        title.setStyleSheet(f"color: {C['dim']}; font-family: Consolas; font-size: 10px;")
-        hl.addWidget(title)
-        hl.addStretch()
+            title = QLabel(f"Running: {filename}")
+            title.setStyleSheet(f"color: {C['dim']}; font-family: Consolas; font-size: 10px;")
+            hl.addWidget(title)
+            hl.addStretch()
 
-        self.close_btn = QPushButton("✕ Close")
-        self.close_btn.setFixedHeight(22)
-        self.close_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent; color: {C['dim']};
-                border: none; font-family: Consolas; font-size: 10px; padding: 0 8px;
-            }}
-            QPushButton:hover {{ color: {C['red']}; }}
-        """)
-        self.close_btn.clicked.connect(self.close)
-        hl.addWidget(self.close_btn)
-        layout.addWidget(header)
+            self.close_btn = QPushButton("Close")
+            self.close_btn.setFixedHeight(22)
+            self.close_btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {C['dim']}; border: none; font-family: Consolas; font-size: 10px; padding: 0 8px; }} QPushButton:hover {{ color: {C['red']}; }}")
+            self.close_btn.clicked.connect(self.close)
+            hl.addWidget(self.close_btn)
+            layout.addWidget(header)
 
-        self.output = QTextEdit()
-        self.output.setReadOnly(True)
-        self.output.setFont(QFont("Consolas", 12))
-        self.output.setStyleSheet(f"""
-            QTextEdit {{
-                background: {C['bg2']}; color: {C['text']};
-                border: none; padding: 12px;
-            }}
-        """)
-        layout.addWidget(self.output)
+            self.output = QTextEdit()
+            self.output.setReadOnly(True)
+            self.output.setFont(QFont("Consolas", 12))
+            self.output.setStyleSheet(f"QTextEdit {{ background: {C['bg2']}; color: {C['text']}; border: none; padding: 12px; }}")
+            layout.addWidget(self.output)
 
-        self.status_bar = QLabel("  Running...")
-        self.status_bar.setFixedHeight(24)
-        self.status_bar.setStyleSheet(f"""
-            background: {C['bg3']}; color: {C['dim']};
-            font-family: Consolas; font-size: 10px;
-            border-top: 1px solid {C['border']};
-            padding-left: 8px;
-        """)
-        layout.addWidget(self.status_bar)
+            self.status_bar = QLabel("  Running...")
+            self.status_bar.setFixedHeight(24)
+            self.status_bar.setStyleSheet(f"background: {C['bg3']}; color: {C['dim']}; font-family: Consolas; font-size: 10px; border-top: 1px solid {C['border']}; padding-left: 8px;")
+            layout.addWidget(self.status_bar)
 
-    def append(self, text, tag="output"):
-        colors = {
-            "output":  C["text"],
-            "error":   C["red"],
-            "success": C["green"],
-            "info":    C["dim"],
-        }
-        self.output.setTextColor(QColor(colors.get(tag, C["text"])))
-        self.output.insertPlainText(text)
-        self.output.ensureCursorVisible()
+        def append(self, text, tag="output"):
+            colors = {"output": C["text"], "error": C["red"], "success": C["green"], "info": C["dim"]}
+            self.output.setTextColor(QColor(colors.get(tag, C["text"])))
+            self.output.insertPlainText(text)
+            self.output.ensureCursorVisible()
 
-    def set_status(self, text, color=None):
-        self.status_bar.setText(f"  {text}")
-        if color:
-            self.status_bar.setStyleSheet(f"""
-                background: {C['bg3']}; color: {color};
-                font-family: Consolas; font-size: 10px;
-                border-top: 1px solid {C['border']};
-                padding-left: 8px;
+        def set_status(self, text, color=None):
+            self.status_bar.setText(f"  {text}")
+            if color:
+                self.status_bar.setStyleSheet(f"background: {C['bg3']}; color: {color}; font-family: Consolas; font-size: 10px; border-top: 1px solid {C['border']}; padding-left: 8px;")
+
+    class BuiltinRunThread(QThread):
+        output   = pyqtSignal(str, str)
+        finished = pyqtSignal(int)
+
+        def __init__(self, path):
+            super().__init__()
+            self.path = path
+
+        def run(self):
+            import io
+            import contextlib
+            output_buf = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(output_buf):
+                    interp = Interpreter()
+                    with open(self.path, 'r', encoding='utf-8') as f:
+                        source = f.read()
+                    interp.run(source)
+                result = output_buf.getvalue()
+                if result:
+                    self.output.emit(result, "output")
+                self.finished.emit(0)
+            except (LexerError, ParseError, CreamRuntimeError) as e:
+                result = output_buf.getvalue()
+                if result:
+                    self.output.emit(result, "output")
+                self.output.emit(f"{e}\n", "error")
+                self.finished.emit(1)
+            except Exception as e:
+                result = output_buf.getvalue()
+                if result:
+                    self.output.emit(result, "output")
+                self.output.emit(f"Unexpected error: {e}\n", "error")
+                self.finished.emit(1)
+
+        def stop(self):
+            self.terminate()
+
+    class RunThread(QThread):
+        output   = pyqtSignal(str, str)
+        finished = pyqtSignal(int)
+
+        def __init__(self, cmd):
+            super().__init__()
+            self.cmd = cmd
+            self.process = None
+
+        def run(self):
+            try:
+                self.process = subprocess.Popen(
+                    self.cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    text=True, encoding="utf-8", errors="replace",
+                )
+                stdout, stderr = self.process.communicate(timeout=30)
+                if stdout: self.output.emit(stdout, "output")
+                if stderr: self.output.emit(stderr, "error")
+                self.finished.emit(self.process.returncode)
+            except subprocess.TimeoutExpired:
+                if self.process: self.process.kill()
+                self.output.emit("\nTimeout!\n", "error")
+                self.finished.emit(-1)
+            except Exception as e:
+                self.output.emit(f"\n{e}\n", "error")
+                self.finished.emit(-1)
+
+        def stop(self):
+            if self.process: self.process.kill()
+
+    class SplashScreen(QWidget):
+        def __init__(self):
+            super().__init__()
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.SplashScreen)
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+            self.setFixedSize(380, 420)
+            screen = QApplication.primaryScreen().geometry()
+            self.move((screen.width() - self.width()) // 2, (screen.height() - self.height()) // 2)
+
+            layout = QVBoxLayout(self)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(0)
+
+            container = QWidget()
+            container.setStyleSheet(f"QWidget {{ background: {C['bg']}; border-radius: 16px; border: 1px solid {C['border']}; }}")
+            container_layout = QVBoxLayout(container)
+            container_layout.setContentsMargins(40, 50, 40, 40)
+            container_layout.setSpacing(0)
+            container_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            self.logo_label = QLabel()
+            self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cream.ico")
+            if os.path.exists(icon_path):
+                pixmap = QPixmap(icon_path).scaled(160, 160, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                self.logo_label.setPixmap(pixmap)
+            else:
+                self.logo_label.setText("CREAM")
+                self.logo_label.setStyleSheet("font-size: 80px;")
+            container_layout.addWidget(self.logo_label)
+            container_layout.addSpacing(28)
+
+            name_label = QLabel("Cream")
+            name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            name_label.setStyleSheet(f"color: {C['text']}; font-family: Georgia, serif; font-size: 42px; font-weight: bold; font-style: italic; background: transparent; border: none;")
+            container_layout.addWidget(name_label)
+            container_layout.addSpacing(6)
+
+            sub_label = QLabel("Programming Language IDE")
+            sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            sub_label.setStyleSheet(f"color: {C['dim']}; font-family: Consolas; font-size: 12px; letter-spacing: 2px; background: transparent; border: none;")
+            container_layout.addWidget(sub_label)
+            container_layout.addSpacing(36)
+
+            self.progress_bar = QWidget()
+            self.progress_bar.setFixedHeight(3)
+            self.progress_bar.setStyleSheet(f"background: {C['border']}; border-radius: 2px; border: none;")
+            container_layout.addWidget(self.progress_bar)
+
+            self.progress_fill = QWidget(self.progress_bar)
+            self.progress_fill.setFixedHeight(3)
+            self.progress_fill.setStyleSheet(f"background: {C['accent']}; border-radius: 2px; border: none;")
+            self.progress_fill.setFixedWidth(0)
+            container_layout.addSpacing(12)
+
+            ver_label = QLabel("v0.1  (c) Mauya Apps")
+            ver_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            ver_label.setStyleSheet(f"color: {C['dim']}; font-family: Consolas; font-size: 10px; background: transparent; border: none;")
+            container_layout.addWidget(ver_label)
+            layout.addWidget(container)
+
+            self._progress = 0
+            self._timer = QTimer()
+            self._timer.timeout.connect(self._animate)
+            self._timer.start(18)
+
+        def _animate(self):
+            self._progress += 1
+            bar_width = int((self.progress_bar.width() * self._progress) / 100)
+            self.progress_fill.setFixedWidth(bar_width)
+            if self._progress >= 100:
+                self._timer.stop()
+
+        def resizeEvent(self, event):
+            super().resizeEvent(event)
+
+    class CreamIDE(QMainWindow):
+        def __init__(self):
+            super().__init__()
+            self.current_file = None
+            self.modified     = False
+            self.run_thread   = None
+            self.cream_path   = "builtin"
+
+            self.setWindowTitle("Cream IDE v0.1")
+            self.resize(1200, 750)
+            self._apply_theme()
+            self._build_ui()
+            self._build_menu()
+            self._load_welcome()
+
+        def _apply_theme(self):
+            self.setStyleSheet(f"""
+                QMainWindow, QWidget {{ background:{C['bg']}; color:{C['text']}; }}
+                QSplitter::handle {{ background:{C['border']}; }}
+                QMenuBar {{ background:{C['bg2']}; color:{C['text']}; border-bottom:1px solid {C['border']}; padding:2px; }}
+                QMenuBar::item:selected {{ background:{C['accent']}; color:{C['bg']}; border-radius:3px; }}
+                QMenu {{ background:{C['bg3']}; color:{C['text']}; border:1px solid {C['border']}; }}
+                QMenu::item:selected {{ background:{C['accent']}; color:{C['bg']}; }}
+                QToolBar {{ background:{C['bg2']}; border-bottom:1px solid {C['border']}; spacing:4px; padding:4px 8px; }}
+                QStatusBar {{ background:{C['bg3']}; color:{C['dim']}; font-family:Consolas; font-size:11px; border-top:1px solid {C['border']}; }}
+                QPushButton {{ background:{C['bg3']}; color:{C['text']}; border:1px solid {C['border']}; border-radius:4px; padding:5px 14px; font-family:Consolas; font-size:11px; }}
+                QPushButton:hover {{ background:{C['border']}; border-color:{C['accent']}; }}
+                QPushButton#run_btn {{ background:{C['accent']}; color:{C['bg']}; border:none; font-weight:bold; }}
+                QPushButton#run_btn:hover {{ background:{C['accent2']}; }}
+                QPushButton#run_btn:disabled {{ background:{C['border']}; color:{C['dim']}; }}
+                QScrollBar:vertical {{ background:{C['bg']}; width:10px; border:none; }}
+                QScrollBar::handle:vertical {{ background:{C['border']}; border-radius:5px; min-height:20px; }}
+                QScrollBar::handle:vertical:hover {{ background:{C['dim']}; }}
+                QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height:0; }}
+                QScrollBar:horizontal {{ background:{C['bg']}; height:10px; border:none; }}
+                QScrollBar::handle:horizontal {{ background:{C['border']}; border-radius:5px; }}
             """)
 
-class BuiltinRunThread(QThread):
-    output   = pyqtSignal(str, str)
-    finished = pyqtSignal(int)
+        def _build_ui(self):
+            central = QWidget()
+            self.setCentralWidget(central)
+            layout = QVBoxLayout(central)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(0)
 
-    def __init__(self, path):
-        super().__init__()
-        self.path = path
+            toolbar = QToolBar()
+            toolbar.setMovable(False)
+            self.addToolBar(toolbar)
 
-    def run(self):
-        import io
-        import contextlib
+            def tb_btn(text, slot, obj_name=None, shortcut=None):
+                btn = QPushButton(text)
+                if obj_name:  btn.setObjectName(obj_name)
+                if shortcut:  btn.setShortcut(QKeySequence(shortcut))
+                btn.clicked.connect(slot)
+                toolbar.addWidget(btn)
+                return btn
 
-        output_buf = io.StringIO()
-        try:
-            with contextlib.redirect_stdout(output_buf):
-                interp = Interpreter()
-                with open(self.path, 'r', encoding='utf-8') as f:
-                    source = f.read()
-                interp.run(source)
-            result = output_buf.getvalue()
-            if result:
-                self.output.emit(result, "output")
-            self.finished.emit(0)
-        except (LexerError, ParseError, CreamRuntimeError) as e:
-            result = output_buf.getvalue()
-            if result:
-                self.output.emit(result, "output")
-            self.output.emit(f"❌ {e}\n", "error")
-            self.finished.emit(1)
-        except Exception as e:
-            result = output_buf.getvalue()
-            if result:
-                self.output.emit(result, "output")
-            self.output.emit(f"❌ Unexpected error: {e}\n", "error")
-            self.finished.emit(1)
+            tb_btn("New",  self._new_file,  shortcut="Ctrl+N")
+            tb_btn("Open", self._open_file, shortcut="Ctrl+O")
+            tb_btn("Save", self._save_file, shortcut="Ctrl+S")
 
-    def stop(self):
-        self.terminate()
+            sep = QFrame()
+            sep.setFrameShape(QFrame.Shape.VLine)
+            sep.setStyleSheet(f"color:{C['border']}; margin:4px 6px;")
+            toolbar.addWidget(sep)
 
-class RunThread(QThread):
-    output   = pyqtSignal(str, str)
-    finished = pyqtSignal(int)
+            self.run_btn  = tb_btn("Run",  self._run,  obj_name="run_btn", shortcut="F5")
+            self.stop_btn = tb_btn("Stop", self._stop, shortcut="F6")
 
-    def __init__(self, cmd):
-        super().__init__()
-        self.cmd = cmd
-        self.process = None
+            spacer = QWidget()
+            spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            toolbar.addWidget(spacer)
 
-    def run(self):
-        try:
-            self.process = subprocess.Popen(
-                self.cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                text=True, encoding="utf-8", errors="replace",
+            self.toolbar_status = QLabel("Ready")
+            self.toolbar_status.setStyleSheet(f"color:{C['dim']}; font-family:Consolas; font-size:11px; padding-right:16px;")
+            toolbar.addWidget(self.toolbar_status)
+
+            splitter = QSplitter(Qt.Orientation.Vertical)
+            splitter.setHandleWidth(4)
+            layout.addWidget(splitter)
+
+            self.editor = CodeEditor()
+            self.editor.setFont(QFont("Consolas", 12))
+            self.editor.setStyleSheet(f"QPlainTextEdit {{ background:{C['bg']}; color:{C['text']}; border:none; padding:8px; selection-background-color:{C['select']}; }}")
+            self.highlighter = CreamHighlighter(self.editor.document())
+            self.editor.document().contentsChanged.connect(self._on_modified)
+            self.editor.cursorPositionChanged.connect(self._update_cursor_pos)
+            splitter.addWidget(self.editor)
+
+            console_widget = QWidget()
+            cl = QVBoxLayout(console_widget)
+            cl.setContentsMargins(0, 0, 0, 0)
+            cl.setSpacing(0)
+
+            ch = QWidget()
+            ch.setFixedHeight(28)
+            ch.setStyleSheet(f"background:{C['bg3']}; border-top:1px solid {C['border']};")
+            chl = QHBoxLayout(ch)
+            chl.setContentsMargins(12, 0, 8, 0)
+
+            lbl = QLabel("Output")
+            lbl.setStyleSheet(f"color:{C['dim']}; font-family:Consolas; font-size:10px;")
+            chl.addWidget(lbl)
+            chl.addStretch()
+
+            clear_btn = QPushButton("Clear")
+            clear_btn.setFixedHeight(20)
+            clear_btn.setStyleSheet(f"QPushButton{{background:transparent;color:{C['dim']};border:none;font-family:Consolas;font-size:10px;padding:0 8px;}}QPushButton:hover{{color:{C['text']};}}")
+            clear_btn.clicked.connect(self._clear_output)
+            chl.addWidget(clear_btn)
+            cl.addWidget(ch)
+
+            self.console = QTextEdit()
+            self.console.setReadOnly(True)
+            self.console.setFont(QFont("Consolas", 11))
+            self.console.setStyleSheet(f"QTextEdit{{background:{C['bg2']};color:{C['text']};border:none;padding:8px 12px;}}")
+            cl.addWidget(self.console)
+            splitter.addWidget(console_widget)
+            splitter.setSizes([520, 180])
+
+            self.status_bar = QStatusBar()
+            self.setStatusBar(self.status_bar)
+
+            lang_label = QLabel(" Cream v0.1 ")
+            lang_label.setStyleSheet(f"background:{C['accent']};color:{C['bg']};font-weight:bold;padding:0 8px;")
+            self.status_bar.addWidget(lang_label)
+
+            self.status_file = QLabel("untitled.cream")
+            self.status_file.setStyleSheet(f"padding:0 12px;color:{C['dim']};")
+            self.status_bar.addWidget(self.status_file)
+
+            self.status_pos = QLabel("Ln 1, Col 1")
+            self.status_pos.setStyleSheet(f"padding:0 12px;color:{C['dim']};")
+            self.status_bar.addPermanentWidget(self.status_pos)
+
+        def _build_menu(self):
+            mb = self.menuBar()
+
+            fm = mb.addMenu("File")
+            fm.addAction(self._action("New",       "Ctrl+N",       self._new_file))
+            fm.addAction(self._action("Open...",   "Ctrl+O",       self._open_file))
+            fm.addAction(self._action("Save",      "Ctrl+S",       self._save_file))
+            fm.addAction(self._action("Save As...", "Ctrl+Shift+S", self._save_as))
+            fm.addSeparator()
+            fm.addAction(self._action("Exit",      "Alt+F4",       self.close))
+
+            rm = mb.addMenu("Run")
+            rm.addAction(self._action("Run",          "F5", self._run))
+            rm.addAction(self._action("Stop",         "F6", self._stop))
+            rm.addAction(self._action("Clear Output", "",   self._clear_output))
+
+        def _action(self, name, shortcut, slot):
+            a = QAction(name, self)
+            if shortcut: a.setShortcut(QKeySequence(shortcut))
+            a.triggered.connect(slot)
+            return a
+
+        def _load_welcome(self):
+            self.editor.setPlainText(
+                '-- Welcome to Cream IDE! Press F5 to run.\n\n'
+                'name = "World"\n'
+                'say "Hello, {name}!"\n\n'
+                'numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]\n'
+                'result = numbers\n'
+                '    | filter(x -> x % 2 == 0)\n'
+                '    | map(x -> x * 2)\n'
+                '    | sum\n'
+                'say "Sum of evens: {result}"\n'
             )
-            stdout, stderr = self.process.communicate(timeout=30)
-            if stdout: self.output.emit(stdout, "output")
-            if stderr: self.output.emit(stderr, "error")
-            self.finished.emit(self.process.returncode)
-        except subprocess.TimeoutExpired:
-            if self.process: self.process.kill()
-            self.output.emit("\n⏱ Timeout!\n", "error")
-            self.finished.emit(-1)
-        except Exception as e:
-            self.output.emit(f"\n❌ {e}\n", "error")
-            self.finished.emit(-1)
-
-    def stop(self):
-        if self.process: self.process.kill()
-
-class SplashScreen(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.SplashScreen
-        )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setFixedSize(380, 420)
-
-        screen = QApplication.primaryScreen().geometry()
-        self.move(
-            (screen.width()  - self.width())  // 2,
-            (screen.height() - self.height()) // 2,
-        )
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        container = QWidget()
-        container.setStyleSheet(f"""
-            QWidget {{
-                background: {C['bg']};
-                border-radius: 16px;
-                border: 1px solid {C['border']};
-            }}
-        """)
-        container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(40, 50, 40, 40)
-        container_layout.setSpacing(0)
-        container_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self.logo_label = QLabel()
-        self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cream.ico")
-        if os.path.exists(icon_path):
-            from PyQt6.QtGui import QPixmap
-            pixmap = QPixmap(icon_path).scaled(
-                160, 160,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            self.logo_label.setPixmap(pixmap)
-        else:
-            self.logo_label.setText("🍦")
-            self.logo_label.setStyleSheet("font-size: 80px;")
-        container_layout.addWidget(self.logo_label)
-
-        container_layout.addSpacing(28)
-
-        name_label = QLabel("Cream")
-        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        name_label.setStyleSheet(f"""
-            color: {C['text']};
-            font-family: Georgia, serif;
-            font-size: 42px;
-            font-weight: bold;
-            font-style: italic;
-            background: transparent;
-            border: none;
-        """)
-        container_layout.addWidget(name_label)
-
-        container_layout.addSpacing(6)
-
-        sub_label = QLabel("Programming Language IDE")
-        sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sub_label.setStyleSheet(f"""
-            color: {C['dim']};
-            font-family: Consolas;
-            font-size: 12px;
-            letter-spacing: 2px;
-            background: transparent;
-            border: none;
-        """)
-        container_layout.addWidget(sub_label)
-
-        container_layout.addSpacing(36)
-
-        self.progress_bar = QWidget()
-        self.progress_bar.setFixedHeight(3)
-        self.progress_bar.setStyleSheet(f"background: {C['border']}; border-radius: 2px; border: none;")
-        container_layout.addWidget(self.progress_bar)
-
-        self.progress_fill = QWidget(self.progress_bar)
-        self.progress_fill.setFixedHeight(3)
-        self.progress_fill.setStyleSheet(f"background: {C['accent']}; border-radius: 2px; border: none;")
-        self.progress_fill.setFixedWidth(0)
-
-        container_layout.addSpacing(12)
-
-        ver_label = QLabel("v0.1  ©  Mauya Apps")
-        ver_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        ver_label.setStyleSheet(f"""
-            color: {C['dim']};
-            font-family: Consolas;
-            font-size: 10px;
-            background: transparent;
-            border: none;
-        """)
-        container_layout.addWidget(ver_label)
-
-        layout.addWidget(container)
-
-        self._progress = 0
-        self._timer = QTimer()
-        self._timer.timeout.connect(self._animate)
-        self._timer.start(18)
-
-    def _animate(self):
-        self._progress += 1
-        bar_width = int((self.progress_bar.width() * self._progress) / 100)
-        self.progress_fill.setFixedWidth(bar_width)
-        if self._progress >= 100:
-            self._timer.stop()
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        
-        class CreamIDE(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.current_file = None
-        self.modified     = False
-        self.run_thread   = None
-        self.cream_path   = self._find_cream()
-
-        self.setWindowTitle("Cream IDE v0.1")
-        self.resize(1200, 750)
-        self._apply_theme()
-        self._build_ui()
-        self._build_menu()
-        self._load_welcome()
-
-    def _find_cream(self):
-        return "builtin" 
-
-    def _apply_theme(self):
-        self.setStyleSheet(f"""
-            QMainWindow, QWidget {{ background:{C['bg']}; color:{C['text']}; }}
-            QSplitter::handle {{ background:{C['border']}; }}
-            QMenuBar {{ background:{C['bg2']}; color:{C['text']}; border-bottom:1px solid {C['border']}; padding:2px; }}
-            QMenuBar::item:selected {{ background:{C['accent']}; color:{C['bg']}; border-radius:3px; }}
-            QMenu {{ background:{C['bg3']}; color:{C['text']}; border:1px solid {C['border']}; }}
-            QMenu::item:selected {{ background:{C['accent']}; color:{C['bg']}; }}
-            QToolBar {{ background:{C['bg2']}; border-bottom:1px solid {C['border']}; spacing:4px; padding:4px 8px; }}
-            QStatusBar {{ background:{C['bg3']}; color:{C['dim']}; font-family:Consolas; font-size:11px; border-top:1px solid {C['border']}; }}
-            QPushButton {{ background:{C['bg3']}; color:{C['text']}; border:1px solid {C['border']}; border-radius:4px; padding:5px 14px; font-family:Consolas; font-size:11px; }}
-            QPushButton:hover {{ background:{C['border']}; border-color:{C['accent']}; }}
-            QPushButton#run_btn {{ background:{C['accent']}; color:{C['bg']}; border:none; font-weight:bold; }}
-            QPushButton#run_btn:hover {{ background:{C['accent2']}; }}
-            QPushButton#run_btn:disabled {{ background:{C['border']}; color:{C['dim']}; }}
-            QScrollBar:vertical {{ background:{C['bg']}; width:10px; border:none; }}
-            QScrollBar::handle:vertical {{ background:{C['border']}; border-radius:5px; min-height:20px; }}
-            QScrollBar::handle:vertical:hover {{ background:{C['dim']}; }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height:0; }}
-            QScrollBar:horizontal {{ background:{C['bg']}; height:10px; border:none; }}
-            QScrollBar::handle:horizontal {{ background:{C['border']}; border-radius:5px; }}
-        """)
-
-    def _build_ui(self):
-        central = QWidget()
-        self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        toolbar = QToolBar()
-        toolbar.setMovable(False)
-        self.addToolBar(toolbar)
-
-        def tb_btn(text, slot, obj_name=None, shortcut=None):
-            btn = QPushButton(text)
-            if obj_name:  btn.setObjectName(obj_name)
-            if shortcut:  btn.setShortcut(QKeySequence(shortcut))
-            btn.clicked.connect(slot)
-            toolbar.addWidget(btn)
-            return btn
-
-        tb_btn("⬜  New",  self._new_file,  shortcut="Ctrl+N")
-        tb_btn("📂  Open", self._open_file, shortcut="Ctrl+O")
-        tb_btn("💾  Save", self._save_file, shortcut="Ctrl+S")
-
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.VLine)
-        sep.setStyleSheet(f"color:{C['border']}; margin:4px 6px;")
-        toolbar.addWidget(sep)
-
-        self.run_btn  = tb_btn("▶   Run",  self._run,  obj_name="run_btn", shortcut="F5")
-        self.stop_btn = tb_btn("■   Stop", self._stop, shortcut="F6")
-
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        toolbar.addWidget(spacer)
-
-        self.toolbar_status = QLabel("Ready")
-        self.toolbar_status.setStyleSheet(f"color:{C['dim']}; font-family:Consolas; font-size:11px; padding-right:16px;")
-        toolbar.addWidget(self.toolbar_status)
-
-        splitter = QSplitter(Qt.Orientation.Vertical)
-        splitter.setHandleWidth(4)
-        layout.addWidget(splitter)
-
-        self.editor = CodeEditor()
-        self.editor.setFont(QFont("Consolas", 12))
-        self.editor.setStyleSheet(f"""
-            QPlainTextEdit {{
-                background:{C['bg']}; color:{C['text']};
-                border:none; padding:8px;
-                selection-background-color:{C['select']};
-            }}
-        """)
-        self.highlighter = CreamHighlighter(self.editor.document())
-        self.editor.document().contentsChanged.connect(self._on_modified)
-        self.editor.cursorPositionChanged.connect(self._update_cursor_pos)
-        splitter.addWidget(self.editor)
-
-        console_widget = QWidget()
-        cl = QVBoxLayout(console_widget)
-        cl.setContentsMargins(0, 0, 0, 0)
-        cl.setSpacing(0)
-
-        ch = QWidget()
-        ch.setFixedHeight(28)
-        ch.setStyleSheet(f"background:{C['bg3']}; border-top:1px solid {C['border']};")
-        chl = QHBoxLayout(ch)
-        chl.setContentsMargins(12, 0, 8, 0)
-
-        lbl = QLabel("Output")
-        lbl.setStyleSheet(f"color:{C['dim']}; font-family:Consolas; font-size:10px;")
-        chl.addWidget(lbl)
-        chl.addStretch()
-
-        clear_btn = QPushButton("✕ Clear")
-        clear_btn.setFixedHeight(20)
-        clear_btn.setStyleSheet(f"QPushButton{{background:transparent;color:{C['dim']};border:none;font-family:Consolas;font-size:10px;padding:0 8px;}}QPushButton:hover{{color:{C['text']};}}")
-        clear_btn.clicked.connect(self._clear_output)
-        chl.addWidget(clear_btn)
-        cl.addWidget(ch)
-
-        self.console = QTextEdit()
-        self.console.setReadOnly(True)
-        self.console.setFont(QFont("Consolas", 11))
-        self.console.setStyleSheet(f"QTextEdit{{background:{C['bg2']};color:{C['text']};border:none;padding:8px 12px;}}")
-        cl.addWidget(self.console)
-        splitter.addWidget(console_widget)
-        splitter.setSizes([520, 180])
-
-        self.status_bar = QStatusBar()
-        self.setStatusBar(self.status_bar)
-
-        lang_label = QLabel(" Cream v0.1 ")
-        lang_label.setStyleSheet(f"background:{C['accent']};color:{C['bg']};font-weight:bold;padding:0 8px;")
-        self.status_bar.addWidget(lang_label)
-
-        self.status_file = QLabel("untitled.cream")
-        self.status_file.setStyleSheet(f"padding:0 12px;color:{C['dim']};")
-        self.status_bar.addWidget(self.status_file)
-
-        self.status_pos = QLabel("Ln 1, Col 1")
-        self.status_pos.setStyleSheet(f"padding:0 12px;color:{C['dim']};")
-        self.status_bar.addPermanentWidget(self.status_pos)
-
-    def _build_menu(self):
-        mb = self.menuBar()
-
-        fm = mb.addMenu("File")
-        fm.addAction(self._action("New",       "Ctrl+N",       self._new_file))
-        fm.addAction(self._action("Open...",   "Ctrl+O",       self._open_file))
-        fm.addAction(self._action("Save",      "Ctrl+S",       self._save_file))
-        fm.addAction(self._action("Save As...", "Ctrl+Shift+S", self._save_as))
-        fm.addSeparator()
-        fm.addAction(self._action("Exit",      "Alt+F4",       self.close))
-
-        rm = mb.addMenu("Run")
-        rm.addAction(self._action("Run",          "F5", self._run))
-        rm.addAction(self._action("Stop",         "F6", self._stop))
-        rm.addAction(self._action("Clear Output", "",   self._clear_output))
-
-    def _action(self, name, shortcut, slot):
-        a = QAction(name, self)
-        if shortcut: a.setShortcut(QKeySequence(shortcut))
-        a.triggered.connect(slot)
-        return a
-
-    def _load_welcome(self):
-        self.editor.setPlainText(
-            '-- Welcome to Cream IDE! Press F5 to run.\n\n'
-            'name = "World"\n'
-            'say "Hello, {name}!"\n\n'
-            'numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]\n'
-            'result = numbers\n'
-            '    | filter(x \u2192 x % 2 == 0)\n'
-            '    | map(x \u2192 x * 2)\n'
-            '    | sum\n'
-            'say "Sum of evens: {result}"\n'
-        )
-        self.modified = False
-        self._update_title()
-
-    def _on_modified(self):
-        if not self.modified:
-            self.modified = True
+            self.modified = False
             self._update_title()
 
-    def _update_title(self):
-        name = os.path.basename(self.current_file) if self.current_file else "untitled.cream"
-        mark = " •" if self.modified else ""
-        self.setWindowTitle(f"Cream IDE \u2014 {name}{mark}")
-        self.status_file.setText(self.current_file or "untitled.cream")
+        def _on_modified(self):
+            if not self.modified:
+                self.modified = True
+                self._update_title()
 
-    def _update_cursor_pos(self):
-        c = self.editor.textCursor()
-        self.status_pos.setText(f"Ln {c.blockNumber()+1}, Col {c.columnNumber()+1}")
+        def _update_title(self):
+            name = os.path.basename(self.current_file) if self.current_file else "untitled.cream"
+            mark = " *" if self.modified else ""
+            self.setWindowTitle(f"Cream IDE - {name}{mark}")
+            self.status_file.setText(self.current_file or "untitled.cream")
 
-    def _new_file(self):
-        if self.modified:
-            r = QMessageBox.question(self, "Unsaved", "Discard changes?")
-            if r != QMessageBox.StandardButton.Yes: return
-        self.editor.clear()
-        self.current_file = None
-        self.modified = False
-        self._update_title()
+        def _update_cursor_pos(self):
+            c = self.editor.textCursor()
+            self.status_pos.setText(f"Ln {c.blockNumber()+1}, Col {c.columnNumber()+1}")
 
-    def _open_file(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Open", "", "Cream files (*.cream);;All files (*.*)")
-        if not path: return
-        with open(path, "r", encoding="utf-8") as f:
-            self.editor.setPlainText(f.read())
-        self.current_file = path
-        self.modified = False
-        self._update_title()
+        def _new_file(self):
+            if self.modified:
+                r = QMessageBox.question(self, "Unsaved", "Discard changes?")
+                if r != QMessageBox.StandardButton.Yes: return
+            self.editor.clear()
+            self.current_file = None
+            self.modified = False
+            self._update_title()
 
-    def _save_file(self):
-        if not self.current_file: return self._save_as()
-        with open(self.current_file, "w", encoding="utf-8") as f:
-            f.write(self.editor.toPlainText())
-        self.modified = False
-        self._update_title()
-        self.toolbar_status.setText("Saved \u2713")
-        QTimer.singleShot(2000, lambda: self.toolbar_status.setText("Ready"))
+        def _open_file(self):
+            path, _ = QFileDialog.getOpenFileName(self, "Open", "", "Cream files (*.cream);;All files (*.*)")
+            if not path: return
+            with open(path, "r", encoding="utf-8") as f:
+                self.editor.setPlainText(f.read())
+            self.current_file = path
+            self.modified = False
+            self._update_title()
 
-    def _save_as(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Save As", "", "Cream files (*.cream);;All files (*.*)")
-        if not path: return
-        self.current_file = path
-        self._save_file()
-
-    def _run(self):
-        if not self.current_file:
-            tmp = os.path.join(os.path.expanduser("~"), "_cream_tmp.cream")
-            with open(tmp, "w", encoding="utf-8") as f:
+        def _save_file(self):
+            if not self.current_file: return self._save_as()
+            with open(self.current_file, "w", encoding="utf-8") as f:
                 f.write(self.editor.toPlainText())
-            run_path = tmp
-            filename = "untitled.cream"
-        else:
+            self.modified = False
+            self._update_title()
+            self.toolbar_status.setText("Saved")
+            QTimer.singleShot(2000, lambda: self.toolbar_status.setText("Ready"))
+
+        def _save_as(self):
+            path, _ = QFileDialog.getSaveFileName(self, "Save As", "", "Cream files (*.cream);;All files (*.*)")
+            if not path: return
+            self.current_file = path
             self._save_file()
-            run_path = self.current_file
-            filename = os.path.basename(self.current_file)
 
-        self.toolbar_status.setText("Running...")
-        self.run_btn.setEnabled(False)
+        def _run(self):
+            if not self.current_file:
+                tmp = os.path.join(os.path.expanduser("~"), "_cream_tmp.cream")
+                with open(tmp, "w", encoding="utf-8") as f:
+                    f.write(self.editor.toPlainText())
+                run_path = tmp
+                filename = "untitled.cream"
+            else:
+                self._save_file()
+                run_path = self.current_file
+                filename = os.path.basename(self.current_file)
 
-        self.output_window = RunOutputWindow(filename, parent=None)
-        self.output_window.show()
-        self.output_window.raise_()
+            self.toolbar_status.setText("Running...")
+            self.run_btn.setEnabled(False)
 
-        self.run_thread = BuiltinRunThread(run_path)
-        self.run_thread.output.connect(self.output_window.append)
-        self.run_thread.finished.connect(self._on_run_finished)
-        self.run_thread.start()
+            self.output_window = RunOutputWindow(filename, parent=None)
+            self.output_window.show()
+            self.output_window.raise_()
 
-    def _stop(self):
-        if self.run_thread and self.run_thread.isRunning():
-            self.run_thread.stop()
-            self._print("\n■ Stopped\n", "error")
-            self.toolbar_status.setText("Stopped")
+            self.run_thread = BuiltinRunThread(run_path)
+            self.run_thread.output.connect(self.output_window.append)
+            self.run_thread.finished.connect(self._on_run_finished)
+            self.run_thread.start()
+
+        def _stop(self):
+            if self.run_thread and self.run_thread.isRunning():
+                self.run_thread.stop()
+                self._print("\nStopped\n", "error")
+                self.toolbar_status.setText("Stopped")
+                self.run_btn.setEnabled(True)
+
+        def _on_run_finished(self, code):
+            if hasattr(self, 'output_window') and self.output_window:
+                if code == 0:
+                    self.output_window.append("\nDone\n", "success")
+                    self.output_window.set_status("Done", C["green"])
+                else:
+                    self.output_window.set_status("Error", C["red"])
+            self.toolbar_status.setText("Done" if code == 0 else "Error")
             self.run_btn.setEnabled(True)
 
-    def _on_run_finished(self, code):
-        if hasattr(self, 'output_window') and self.output_window:
-            if code == 0:
-                self.output_window.append("\n✅ Done\n", "success")
-                self.output_window.set_status("Done ✓", C["green"])
-            else:
-                self.output_window.set_status("Error", C["red"])
-        self.toolbar_status.setText("Done ✓" if code == 0 else "Error")
-        self.run_btn.setEnabled(True)
+        def _clear_output(self):
+            self.console.clear()
 
-    def _clear_output(self):
-        self.console.clear()
+        def _print(self, text, tag="output"):
+            colors = {"output": C["text"], "error": C["red"], "success": C["green"], "info": C["dim"]}
+            self.console.setTextColor(QColor(colors.get(tag, C["text"])))
+            self.console.insertPlainText(text)
+            self.console.ensureCursorVisible()
 
-    def _print(self, text, tag="output"):
-        colors = {"output": C["text"], "error": C["red"], "success": C["green"], "info": C["dim"]}
-        self.console.setTextColor(QColor(colors.get(tag, C["text"])))
-        self.console.insertPlainText(text)
-        self.console.ensureCursorVisible()
-
-    def closeEvent(self, event):
-        if self.modified:
-            r = QMessageBox.question(self, "Unsaved", "Save before exit?",
-                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
-            if r == QMessageBox.StandardButton.Save: self._save_file()
-            elif r == QMessageBox.StandardButton.Cancel: event.ignore(); return
-        event.accept()
+        def closeEvent(self, event):
+            if self.modified:
+                r = QMessageBox.question(self, "Unsaved", "Save before exit?",
+                    QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+                if r == QMessageBox.StandardButton.Save: self._save_file()
+                elif r == QMessageBox.StandardButton.Cancel: event.ignore(); return
+            event.accept()
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    app.setApplicationName("Cream IDE")
-    app.setStyle("Fusion")
+    import sys as _sys_main
 
-    palette = QPalette()
-    palette.setColor(QPalette.ColorRole.Window,        QColor(C["bg"]))
-    palette.setColor(QPalette.ColorRole.WindowText,    QColor(C["text"]))
-    palette.setColor(QPalette.ColorRole.Base,          QColor(C["bg"]))
-    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(C["bg2"]))
-    palette.setColor(QPalette.ColorRole.Text,          QColor(C["text"]))
-    palette.setColor(QPalette.ColorRole.Button,        QColor(C["bg3"]))
-    palette.setColor(QPalette.ColorRole.ButtonText,    QColor(C["text"]))
-    palette.setColor(QPalette.ColorRole.Highlight,     QColor(C["accent"]))
-    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(C["bg"]))
-    app.setPalette(palette)
+    if len(_sys_main.argv) > 1 and not HAS_PYQT6:
+        run_file(_sys_main.argv[1])
+        _sys_main.exit()
 
-    window = CreamIDE()
-    splash = SplashScreen()
-    splash.show()
-    app.processEvents()
+    if HAS_PYQT6:
+        app = QApplication(_sys_main.argv)
+        app.setApplicationName("Cream IDE")
+        app.setStyle("Fusion")
 
-    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cream.ico")
-    if os.path.exists(icon_path):
-        window.setWindowIcon(QIcon(icon_path))
+        palette = QPalette()
+        palette.setColor(QPalette.ColorRole.Window,        QColor(C["bg"]))
+        palette.setColor(QPalette.ColorRole.WindowText,    QColor(C["text"]))
+        palette.setColor(QPalette.ColorRole.Base,          QColor(C["bg"]))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(C["bg2"]))
+        palette.setColor(QPalette.ColorRole.Text,          QColor(C["text"]))
+        palette.setColor(QPalette.ColorRole.Button,        QColor(C["bg3"]))
+        palette.setColor(QPalette.ColorRole.ButtonText,    QColor(C["text"]))
+        palette.setColor(QPalette.ColorRole.Highlight,     QColor(C["accent"]))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(C["bg"]))
+        app.setPalette(palette)
 
-    QTimer.singleShot(2500, lambda: (splash.close(), window.show()))
-    sys.exit(app.exec())
+        window = CreamIDE()
+        splash = SplashScreen()
+        splash.show()
+        app.processEvents()
+
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cream.ico")
+        if os.path.exists(icon_path):
+            window.setWindowIcon(QIcon(icon_path))
+
+        QTimer.singleShot(2500, lambda: (splash.close(), window.show()))
+        _sys_main.exit(app.exec())
+    else:
+        print("PyQt6 not available. Running in CLI mode.")
+        if len(_sys_main.argv) > 1:
+            run_file(_sys_main.argv[1])
+        else:
+            try:
+                repl()
+            except (EOFError, OSError):
+                print("Goodbye!")
