@@ -16,6 +16,11 @@ class TT:
     COLON    = "COLON";    NEWLINE  = "NEWLINE"
     INDENT   = "INDENT";   DEDENT   = "DEDENT"
     EOF      = "EOF"
+    PLUS_ASSIGN   = "PLUS_ASSIGN"
+    MINUS_ASSIGN  = "MINUS_ASSIGN"
+    STAR_ASSIGN   = "STAR_ASSIGN"
+    SLASH_ASSIGN  = "SLASH_ASSIGN"
+    PERCENT_ASSIGN = "PERCENT_ASSIGN"
 
 KEYWORDS = {
     "if", "else", "or if", "for each", "in",
@@ -159,6 +164,16 @@ class Lexer:
             elif ch == '→': self.add(TT.ARROW, '→'); self.advance()
             elif ch == '-' and self.peek() == '>':
                 self.advance(); self.advance(); self.add(TT.ARROW, '->')
+            elif ch == '+' and self.peek() == '=':
+                self.advance(); self.advance(); self.add(TT.PLUS_ASSIGN, '+=')
+            elif ch == '-' and self.peek() == '=':
+                self.advance(); self.advance(); self.add(TT.MINUS_ASSIGN, '-=')
+            elif ch == '*' and self.peek() == '=':
+                self.advance(); self.advance(); self.add(TT.STAR_ASSIGN, '*=')
+            elif ch == '/' and self.peek() == '=':
+                self.advance(); self.advance(); self.add(TT.SLASH_ASSIGN, '/=')
+            elif ch == '%' and self.peek() == '=':
+                self.advance(); self.advance(); self.add(TT.PERCENT_ASSIGN, '%=')
             elif ch == '=' and self.peek() == '=':
                 self.advance(); self.advance(); self.add(TT.EQ, '==')
             elif ch == '!' and self.peek() == '=':
@@ -244,6 +259,10 @@ class Assign(Node):
     def __init__(self, name, value):
         self.name = name; self.value = value
 
+class AugAssign(Node):
+    def __init__(self, name, op, value):
+        self.name = name; self.op = op; self.value = value
+
 class Say(Node):
     def __init__(self, value): self.value = value
 
@@ -294,6 +313,14 @@ class ParseError(Exception):
     def __init__(self, msg, token=None):
         loc = f" (line {token.line})" if token else ""
         super().__init__(f"[Parse Error]{loc}: {msg}")
+
+AUG_ASSIGN_OPS = {
+    TT.PLUS_ASSIGN:   "+",
+    TT.MINUS_ASSIGN:  "-",
+    TT.STAR_ASSIGN:   "*",
+    TT.SLASH_ASSIGN:  "/",
+    TT.PERCENT_ASSIGN:"%",
+}
 
 class Parser:
     def __init__(self, tokens):
@@ -359,6 +386,8 @@ class Parser:
             if kw == "import":   return self.parse_import()
         if tok.type == TT.IDENT and self.peek().type == TT.ASSIGN:
             return self.parse_assign()
+        if tok.type == TT.IDENT and self.peek().type in AUG_ASSIGN_OPS:
+            return self.parse_aug_assign()
         expr = self.parse_expression()
         self.skip_newlines()
         return expr
@@ -375,6 +404,14 @@ class Parser:
         value = self.parse_pipeline()
         self.skip_newlines()
         return Assign(name, value)
+
+    def parse_aug_assign(self):
+        name = self.advance().value
+        op_tok = self.advance()
+        op = AUG_ASSIGN_OPS[op_tok.type]
+        value = self.parse_pipeline()
+        self.skip_newlines()
+        return AugAssign(name, op, value)
 
     def parse_return(self):
         self.advance()
@@ -709,6 +746,7 @@ class CreamStructType:
     def __init__(self, name, fields):
         self.name   = name
         self.fields = fields
+
     def __repr__(self):
         return f"<struct {self.name}>"
 
@@ -730,6 +768,7 @@ class CreamRuntimeError(Exception):
 class Interpreter:
     def __init__(self):
         self.global_env = Environment()
+        self.call_stack = []
         self._setup_builtins()
 
     def _setup_builtins(self):
@@ -1358,12 +1397,12 @@ class Interpreter:
         return str(value)
 
     def _interpolate(self, s, env):
-        import re
+        import re as _re_local
         def replace(m):
             var_name = m.group(1)
             try:    return self._cream_str(env.get(var_name))
             except: return m.group(0)
-        return re.sub(r'\{(\w+)\}', replace, s)
+        return _re_local.sub(r'\{(\w+)\}', replace, s)
 
     def exec_block(self, stmts, env):
         for stmt in stmts:
@@ -1374,6 +1413,23 @@ class Interpreter:
         if isinstance(node, Assign):
             value = self.eval_expr(node.value, env)
             env.set(node.name, value)
+
+        elif isinstance(node, AugAssign):
+            current = env.get(node.name)
+            right = self.eval_expr(node.value, env)
+            op = node.op
+            if op == "+":
+                if isinstance(current, str) or isinstance(right, str):
+                    current = self._cream_str(current) + self._cream_str(right)
+                else:
+                    current = current + right
+            elif op == "-": current = current - right
+            elif op == "*": current = current * right
+            elif op == "/":
+                if right == 0: raise CreamRuntimeError("Деление на ноль")
+                current = current / right
+            elif op == "%": current = current % right
+            env.assign(node.name, current)
 
         elif isinstance(node, Say):
             value = self.eval_expr(node.value, env)
@@ -1539,6 +1595,7 @@ class Interpreter:
             return callee(args)
 
         if isinstance(callee, CreamFunction):
+            self.call_stack.append(callee.name)
             local = Environment(callee.closure)
             for i, (param_name, param_default) in enumerate(callee.params):
                 if i < len(args):
@@ -1546,11 +1603,13 @@ class Interpreter:
                 elif param_default is not None:
                     local.set(param_name, self.eval_expr(param_default, env))
                 else:
-                    raise CreamRuntimeError(f"Не передан аргумент '{param_name}'")
+                    raise CreamRuntimeError(f"Не передан аргумент '{param_name}' в {callee.name}()")
             try:
                 self.exec_block(callee.body, local)
+                self.call_stack.pop()
                 return None
             except ReturnSignal as r:
+                self.call_stack.pop()
                 return r.value
 
         if isinstance(callee, CreamLambda):
@@ -1632,7 +1691,19 @@ class Interpreter:
             local = Environment(fn.closure)
             local.set(fn.param, a)
             return self.eval_expr(fn.body, local)
-        raise CreamRuntimeError("reduce требует лямбду")
+        if isinstance(fn, CreamFunction):
+            local = Environment(fn.closure)
+            if len(fn.params) >= 2:
+                local.set(fn.params[0][0], a)
+                local.set(fn.params[1][0], b)
+            elif len(fn.params) == 1:
+                local.set(fn.params[0][0], a)
+            try:
+                self.exec_block(fn.body, local)
+                return None
+            except ReturnSignal as r:
+                return r.value
+        raise CreamRuntimeError("reduce требует лямбду или action с 2 параметрами")
 
     def _exec_import(self, path, env):
         import os as _os
@@ -1681,7 +1752,7 @@ def run_file(path):
         interp = Interpreter()
         interp.run(source, base_dir=_os.path.dirname(_os.path.abspath(path)))
     except FileNotFoundError:
-        print(f"Файл не найден: {path}")
+        print(f"File not found: {path}")
     except (LexerError, ParseError, CreamRuntimeError) as e:
         print(f"{e}")
 
@@ -1702,6 +1773,7 @@ def repl():
             if line.strip() in ("exit", "quit", "q"):
                 print("Goodbye!")
                 break
+
             if not line.strip():
                 if buffer:
                     code = "\n".join(buffer)
@@ -1720,7 +1792,6 @@ def repl():
             if starts_block or buffer:
                 buffer.append(line)
             else:
-
                 try:
                     interp.run(line)
                 except (LexerError, ParseError, CreamRuntimeError) as e:
@@ -1736,7 +1807,7 @@ def repl():
             else:
                 print("\nGoodbye!")
                 break
-        except (EOFError, OSError):  # FIX: добавлен OSError для Pyodide
+        except (EOFError, OSError):
             print("\nGoodbye!")
             break
 
@@ -1747,8 +1818,4 @@ if __name__ == "__main__":
         run_file(sys.argv[1])
         sys.exit()
 
-    try:
-        import js  # FIX: проверка Pyodide среды
-        print("REPL is not available in browser. Use run_file() instead.")
-    except ImportError:
-        repl()
+    repl()
