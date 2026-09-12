@@ -1,4 +1,5 @@
 import hashlib as _hashlib_std
+import sys as _sys_std
 
 class TT:
     NUMBER   = "NUMBER";   STRING   = "STRING"
@@ -8,6 +9,7 @@ class TT:
     STAR     = "STAR";     SLASH    = "SLASH"
     PERCENT  = "PERCENT";  ARROW    = "ARROW"
     PIPE     = "PIPE";     DOT      = "DOT"
+    QMARK    = "QMARK";    SPREAD   = "SPREAD"
     ASSIGN   = "ASSIGN";   EQ       = "EQ"
     NEQ      = "NEQ";      LT       = "LT"
     GT       = "GT";       LTE      = "LTE"
@@ -32,6 +34,7 @@ KEYWORDS = {
     "and", "or", "not", "say",
     "page", "block", "card", "button", "text", "animation",
     "import", "match", "case", "assert",
+    "break", "continue", "guard", "is",
 }
 
 AUG_ASSIGN_OPS = {
@@ -59,10 +62,12 @@ class ErrorCode:
     LEXER_ERROR      = "E014"
     ASSERT_ERROR     = "E015"
     PKG_ERROR        = "E016"
+    TYPE_CHECK_ERROR = "E017"
 
 _token_cache = {}
 _ast_cache = {}
 _CACHE_MAX = 64
+_source_lines_cache = {}
 
 def _cache_get(cache, key):
     return cache.get(key)
@@ -81,9 +86,25 @@ class Token:
         return f"Token({self.type:<12}| {repr(self.value):<20}| line {self.line})"
 
 class LexerError(Exception):
-    def __init__(self, msg, line, col):
-        self.line = line; self.col = col
-        super().__init__(f"[Lexer Error] [{ErrorCode.LEXER_ERROR}] Line {line}, Col {col}: {msg}")
+    def __init__(self, msg, line, col, source=None):
+        self.line = line; self.col = col; self.source = source
+        snippet = _format_snippet(source, line, col) if source else ""
+        super().__init__(f"[Lexer Error] [{ErrorCode.LEXER_ERROR}] Line {line}, Col {col}: {msg}{snippet}")
+
+def _format_snippet(source, line, col=0, context=2):
+    if not source: return ""
+    lines = source.split('\n')
+    if line < 1 or line > len(lines): return ""
+    start = max(0, line - 1 - context)
+    end = min(len(lines), line + context)
+    parts = []
+    for i in range(start, end):
+        marker = ">>>" if i == line - 1 else "   "
+        parts.append(f"  {marker} {i+1:>3} | {lines[i]}")
+        if i == line - 1 and col > 0:
+            pointer = " " * (col + 9) + "^"
+            parts.append(pointer)
+    return "\n" + "\n".join(parts)
 
 class Lexer:
     def __init__(self, source):
@@ -123,7 +144,7 @@ class Lexer:
                 result += {'n':'\n','t':'\t','"':'"','\\':'\\'}.get(esc, esc)
             else: result += self.advance()
         if not self.current():
-            raise LexerError("Незакрытая строка", self.line, col_start)
+            raise LexerError("Незакрытая строка", self.line, col_start, self.source)
         self.advance()
         self.tokens.append(Token(TT.STRING, result, self.line, col_start))
 
@@ -134,21 +155,19 @@ class Lexer:
         while self.pos < len(self.source):
             if self.current() == '"' and self.peek_str(3) == '"""':
                 self.advance(); self.advance(); self.advance()
-                if result.startswith('\n'):
-                    result = result[1:]
+                if result.startswith('\n'): result = result[1:]
                 lines = result.split('\n')
                 if len(lines) > 1:
                     min_indent = 999
                     for line in lines:
                         stripped = line.lstrip(' ')
-                        if stripped:
-                            min_indent = min(min_indent, len(line) - len(stripped))
+                        if stripped: min_indent = min(min_indent, len(line) - len(stripped))
                     if min_indent < 999 and min_indent > 0:
                         result = '\n'.join(line[min_indent:] if len(line) >= min_indent else line for line in lines)
                 self.tokens.append(Token(TT.STRING, result, self.line, col_start))
                 return
             result += self.advance()
-        raise LexerError("Незакрытая многострочная строка", self.line, col_start)
+        raise LexerError("Незакрытая многострочная строка", self.line, col_start, self.source)
 
     def read_number(self):
         col_start = self.col; num = ""
@@ -170,10 +189,8 @@ class Lexer:
                     self.pos += len(second); self.col += len(second)
                     self.tokens.append(Token(TT.KEYWORD, compound, self.line, col_start))
                     return
-                else:
-                    self.pos, self.col, self.line = saved
-        if word == "_":
-            self.tokens.append(Token(TT.IDENT, "_", self.line, col_start))
+                else: self.pos, self.col, self.line = saved
+        if word == "_":     self.tokens.append(Token(TT.IDENT, "_", self.line, col_start))
         elif word in ("yes", "no"):
             self.tokens.append(Token(TT.BOOL, word == "yes", self.line, col_start))
         elif word == "empty":
@@ -214,10 +231,10 @@ class Lexer:
         cache_key = _hashlib_std.md5(self.source.encode('utf-8')).hexdigest() if len(self.source) < 100000 else None
         if cache_key:
             cached = _cache_get(_token_cache, cache_key)
-            if cached is not None:
-                return cached
+            if cached is not None: return cached
+        _source_lines_cache[id(self.source)] = self.source
         lines = self.source.split('\n')
-        pre   = self.handle_indents(lines)
+        pre = self.handle_indents(lines)
         all_tokens = []
         for item in pre:
             if isinstance(item, Token): all_tokens.append(item); continue
@@ -232,8 +249,7 @@ class Lexer:
             all_tokens.extend(self.tokens)
             all_tokens.append(Token(TT.NEWLINE, '\n', line_num, len(text)))
         all_tokens.append(Token(TT.EOF, None, self.line, self.col))
-        if cache_key:
-            _cache_set(_token_cache, cache_key, all_tokens)
+        if cache_key: _cache_set(_token_cache, cache_key, all_tokens)
         return all_tokens
 
     def _tokenize_line(self):
@@ -246,6 +262,10 @@ class Lexer:
             elif ch.isdigit(): self.read_number()
             elif ch.isalpha() or ch == '_': self.read_ident()
             elif ch == '\u2192': self.add(TT.ARROW, '\u2192'); self.advance()
+            elif ch == '?' and self.peek() == '.':
+                self.advance(); self.advance(); self.add(TT.QMARK, '?.')
+            elif ch == '.' and self.peek() == '.' and self.peek(2) == '.':
+                self.advance(); self.advance(); self.advance(); self.add(TT.SPREAD, '...')
             elif ch == '-' and self.peek() == '>':
                 self.advance(); self.advance(); self.add(TT.ARROW, '->')
             elif ch == '+' and self.peek() == '=':
@@ -284,7 +304,7 @@ class Lexer:
             elif ch == '}': self.advance(); self.add(TT.RBRACE,   '}')
             elif ch == ',': self.advance(); self.add(TT.COMMA,    ',')
             elif ch == ':': self.advance(); self.add(TT.COLON,    ':')
-            else: raise LexerError(f"Неизвестный символ: {repr(ch)}", self.line, self.col)
+            else: raise LexerError(f"Неизвестный символ: {repr(ch)}", self.line, self.col, self.source)
 
 class Node:
     line = 0
@@ -305,7 +325,8 @@ class BoolLiteral(Node):
 class EmptyLiteral(Node): pass
 
 class ListLiteral(Node):
-    def __init__(self, elements): self.elements = elements
+    def __init__(self, elements, spreads=None):
+        self.elements = elements; self.spreads = spreads or []
 
 class ListComprehension(Node):
     def __init__(self, expr, var, iterable, condition=None):
@@ -327,12 +348,16 @@ class UnaryOp(Node):
         self.op = op; self.operand = operand
 
 class FieldAccess(Node):
-    def __init__(self, obj, field):
-        self.obj = obj; self.field = field
+    def __init__(self, obj, field, optional=False):
+        self.obj = obj; self.field = field; self.optional = optional
 
 class IndexAccess(Node):
     def __init__(self, obj, index):
         self.obj = obj; self.index = index
+
+class IsCheck(Node):
+    def __init__(self, expr, type_name):
+        self.expr = expr; self.type_name = type_name
 
 class Lambda(Node):
     def __init__(self, param, body):
@@ -370,6 +395,10 @@ class AssertStmt(Node):
     def __init__(self, condition, message=None):
         self.condition = condition; self.message = message
 
+class BreakSignal(Exception): pass
+
+class ContinueSignal(Exception): pass
+
 class Say(Node):
     def __init__(self, value): self.value = value
 
@@ -382,8 +411,9 @@ class If(Node):
         self.elseif_clauses = elseif_clauses; self.else_body = else_body
 
 class ForEach(Node):
-    def __init__(self, var, iterable, body):
+    def __init__(self, var, iterable, body, index_var=None):
         self.var = var; self.iterable = iterable; self.body = body
+        self.index_var = index_var
 
 class Repeat(Node):
     def __init__(self, count, body):
@@ -416,23 +446,27 @@ class StructDef(Node):
 class Import(Node):
     def __init__(self, path): self.path = path
 
+class GuardStmt(Node):
+    def __init__(self, condition, else_body):
+        self.condition = condition; self.else_body = else_body
+
 class ParseError(Exception):
-    def __init__(self, msg, token=None):
+    def __init__(self, msg, token=None, source=None):
         self.line = token.line if token else 0
+        self.source = source
         loc = f" (line {self.line})" if token else ""
-        super().__init__(f"[Parse Error] [{ErrorCode.PARSER_ERROR}]{loc}: {msg}")
+        snippet = _format_snippet(source, self.line, token.col if token else 0) if source and token else ""
+        super().__init__(f"[Parse Error] [{ErrorCode.PARSER_ERROR}]{loc}: {msg}{snippet}")
 
 def _is_const(node):
     return isinstance(node, (NumberLiteral, StringLiteral, BoolLiteral, EmptyLiteral))
 
 def _fold(node):
     if isinstance(node, BinaryOp) and _is_const(node.left) and _is_const(node.right):
-        l = node.left.value; r = node.right.value
-        op = node.op
+        l = node.left.value; r = node.right.value; op = node.op
         try:
             if op == "+":
-                if isinstance(l, str) or isinstance(r, str):
-                    return StringLiteral(str(l) + str(r))
+                if isinstance(l, str) or isinstance(r, str): return StringLiteral(str(l) + str(r))
                 return NumberLiteral(l + r)
             if op == "-":  return NumberLiteral(l - r)
             if op == "*":  return NumberLiteral(l * r)
@@ -450,21 +484,19 @@ def _fold(node):
             if op == "<=": return BoolLiteral(l <= r)
             if op == "and": return BoolLiteral(l and r)
             if op == "or":  return BoolLiteral(l or r)
-        except:
-            pass
+        except: pass
     if isinstance(node, UnaryOp) and _is_const(node.operand):
         v = node.operand.value
         try:
             if node.op == "not": return BoolLiteral(not v)
             if node.op == "-":   return NumberLiteral(-v)
-        except:
-            pass
+        except: pass
     return node
 
 class Parser:
-    def __init__(self, tokens):
+    def __init__(self, tokens, source=None):
         self.tokens = tokens; self.pos = 0
-        self._pending_doc = None
+        self._pending_doc = None; self.source = source
 
     def current(self): return self.tokens[self.pos]
     def peek(self, offset=1):
@@ -481,16 +513,15 @@ class Parser:
 
     def skip_doc_and_newlines(self):
         while self.current().type in (TT.NEWLINE, "DOC_COMMENT"):
-            if self.current().type == "DOC_COMMENT":
-                self._pending_doc = self.current().value
+            if self.current().type == "DOC_COMMENT": self._pending_doc = self.current().value
             self.advance()
 
     def expect(self, type_, value=None):
         tok = self.current()
         if tok.type != type_:
-            raise ParseError(f"Ожидался {type_}, получен {tok.type} ({repr(tok.value)})", tok)
+            raise ParseError(f"Ожидался {type_}, получен {tok.type} ({repr(tok.value)})", tok, self.source)
         if value is not None and tok.value != value:
-            raise ParseError(f"Ожидалось {repr(value)}, получено {repr(tok.value)}", tok)
+            raise ParseError(f"Ожидалось {repr(value)}, получено {repr(tok.value)}", tok, self.source)
         return self.advance()
 
     def check(self, type_, value=None):
@@ -505,21 +536,16 @@ class Parser:
     def _mark(self, node, line):
         node.line = line
         if self._pending_doc:
-            node.doc = self._pending_doc
-            self._pending_doc = None
+            node.doc = self._pending_doc; self._pending_doc = None
         return node
 
     def parse_block(self):
-        self.skip_newlines()
-        self.expect(TT.INDENT)
-        stmts = []
+        self.skip_newlines(); self.expect(TT.INDENT); stmts = []
         while not self.check(TT.DEDENT) and not self.check(TT.EOF):
             self.skip_newlines()
             if self.check(TT.DEDENT) or self.check(TT.EOF): break
-            stmts.append(self.parse_statement())
-            self.skip_newlines()
-        self.expect(TT.DEDENT)
-        return stmts
+            stmts.append(self.parse_statement()); self.skip_newlines()
+        self.expect(TT.DEDENT); return stmts
 
     def parse_statement(self):
         self.skip_doc_and_newlines()
@@ -540,22 +566,27 @@ class Parser:
             if kw == "import":   return self.parse_import()
             if kw == "match":    return self.parse_match()
             if kw == "assert":   return self.parse_assert()
+            if kw == "break":
+                line = tok.line; self.advance(); self.skip_newlines()
+                return self._mark(Say(None), line).__class__.__mro__
+                # break/continue handled as signals
+                self.advance(); self.skip_newlines()
+                node = Say(None); node.__class__ = type('BreakNode', (Node,), {})
+                node.line = tok.line; return node
+            if kw == "continue":
+                self.advance(); self.skip_newlines()
+                node = Say(None); node.__class__ = type('ContinueNode', (Node,), {})
+                node.line = tok.line; return node
+            if kw == "guard":    return self.parse_guard()
         if tok.type == TT.IDENT and self.peek().type == TT.ASSIGN:
-            saved_pos = self.pos
-            names = []
-            names.append(self.advance().value)
+            saved_pos = self.pos; names = [self.advance().value]
             while self.check(TT.COMMA):
-                self.advance()
-                names.append(self.expect(TT.IDENT).value)
-            if len(names) == 1:
-                self.pos = saved_pos
-                return self.parse_assign()
+                self.advance(); names.append(self.expect(TT.IDENT).value)
+            if len(names) == 1: self.pos = saved_pos; return self.parse_assign()
             return self.parse_multi_assign(names)
         if tok.type == TT.IDENT and self.peek().type in AUG_ASSIGN_OPS:
             return self.parse_aug_assign()
-        expr = self.parse_expression()
-        self.skip_newlines()
-        return expr
+        expr = self.parse_expression(); self.skip_newlines(); return expr
 
     def parse_say(self):
         line = self.current().line; self.advance()
@@ -570,18 +601,15 @@ class Parser:
 
     def parse_aug_assign(self):
         line = self.current().line
-        name = self.advance().value
-        op = AUG_ASSIGN_OPS[self.advance().type]
+        name = self.advance().value; op = AUG_ASSIGN_OPS[self.advance().type]
         value = self.parse_pipeline(); self.skip_newlines()
         return self._mark(AugAssign(name, op, value), line)
 
     def parse_multi_assign(self, names):
         line = self.current().line; self.expect(TT.ASSIGN)
         values = [self.parse_expression()]
-        while self.check(TT.COMMA):
-            self.advance(); values.append(self.parse_expression())
-        self.skip_newlines()
-        return self._mark(MultiAssign(names, values), line)
+        while self.check(TT.COMMA): self.advance(); values.append(self.parse_expression())
+        self.skip_newlines(); return self._mark(MultiAssign(names, values), line)
 
     def parse_return(self):
         line = self.current().line; self.advance()
@@ -608,51 +636,52 @@ class Parser:
                 if self.check_keyword("if"):
                     self.advance(); cond = self.parse_expression(); self.skip_newlines()
                     body = self.parse_block(); elseif_clauses.append((cond, body))
-                else:
-                    else_body = self.parse_block(); break
+                else: else_body = self.parse_block(); break
             else: break
         return self._mark(If(condition, then_body, elseif_clauses, else_body), line)
 
     def parse_for_each(self):
         line = self.current().line; self.advance()
-        var = self.expect(TT.IDENT).value
+        first_var = self.expect(TT.IDENT).value
+        index_var = None
+        if self.check(TT.COMMA):
+            self.advance()
+            index_var = first_var
+            var = self.expect(TT.IDENT).value
+        else:
+            var = first_var
         self.expect(TT.KEYWORD, "in")
         iterable = self.parse_expression(); self.skip_newlines()
         body = self.parse_block()
-        return self._mark(ForEach(var, iterable, body), line)
+        return self._mark(ForEach(var, iterable, body, index_var=index_var), line)
 
     def parse_repeat(self):
         line = self.current().line; self.advance()
         count = self.parse_expression(); self.skip_newlines()
-        body = self.parse_block()
-        return self._mark(Repeat(count, body), line)
+        body = self.parse_block(); return self._mark(Repeat(count, body), line)
 
     def parse_while(self):
         line = self.current().line; self.advance()
         condition = self.parse_expression(); self.skip_newlines()
-        body = self.parse_block()
-        return self._mark(While(condition, body), line)
+        body = self.parse_block(); return self._mark(While(condition, body), line)
 
     def parse_action(self):
         line = self.current().line; self.advance()
-        name = self.expect(TT.IDENT).value
-        params = self.parse_params(); self.skip_newlines()
-        body = self.parse_block()
+        name = self.expect(TT.IDENT).value; params = self.parse_params()
+        self.skip_newlines(); body = self.parse_block()
         return self._mark(ActionDef(name, params, body), line)
 
     def parse_task(self):
         line = self.current().line; self.advance()
-        name = self.expect(TT.IDENT).value
-        params = self.parse_params(); self.skip_newlines()
-        body = self.parse_block()
+        name = self.expect(TT.IDENT).value; params = self.parse_params()
+        self.skip_newlines(); body = self.parse_block()
         return self._mark(TaskDef(name, params, body), line)
 
     def parse_params(self):
         self.expect(TT.LPAREN); params = []
         while not self.check(TT.RPAREN):
             name = self.expect(TT.IDENT).value; default = None
-            if self.check(TT.ASSIGN):
-                self.advance(); default = self.parse_expression()
+            if self.check(TT.ASSIGN): self.advance(); default = self.parse_expression()
             params.append((name, default))
             if self.check(TT.COMMA): self.advance()
         self.expect(TT.RPAREN); return params
@@ -672,16 +701,13 @@ class Parser:
         while not self.check(TT.DEDENT):
             self.skip_newlines()
             if self.check(TT.DEDENT): break
-            fname = self.expect(TT.IDENT).value
-            self.expect(TT.COLON); tok = self.current()
+            fname = self.expect(TT.IDENT).value; self.expect(TT.COLON); tok = self.current()
             if tok.type in (TT.IDENT, TT.KEYWORD): ftype = self.advance().value
-            else: raise ParseError(f"Ожидался тип поля", tok)
+            else: raise ParseError(f"Ожидался тип поля", tok, self.source)
             default = None
-            if self.check(TT.ASSIGN):
-                self.advance(); default = self.parse_expression()
+            if self.check(TT.ASSIGN): self.advance(); default = self.parse_expression()
             fields.append((fname, ftype, default)); self.skip_newlines()
-        self.expect(TT.DEDENT)
-        return self._mark(StructDef(name, fields), line)
+        self.expect(TT.DEDENT); return self._mark(StructDef(name, fields), line)
 
     def parse_match(self):
         line = self.current().line; self.advance()
@@ -693,26 +719,33 @@ class Parser:
             self.expect(TT.KEYWORD, "case"); tok = self.current()
             if tok.type == TT.IDENT and tok.value == "_":
                 self.advance(); is_wildcard = True; pattern = None
-            else:
-                is_wildcard = False; pattern = self.parse_expression()
+            else: is_wildcard = False; pattern = self.parse_expression()
             self.skip_newlines(); body = self.parse_block()
             cases.append(CaseClause(pattern, is_wildcard, body))
             if is_wildcard: break
-        self.expect(TT.DEDENT)
-        return self._mark(MatchStmt(subject, cases), line)
+        self.expect(TT.DEDENT); return self._mark(MatchStmt(subject, cases), line)
 
     def parse_assert(self):
         line = self.current().line; self.advance()
         condition = self.parse_expression(); message = None
-        if self.check(TT.COMMA):
-            self.advance(); message = self.parse_expression()
-        self.skip_newlines()
-        return self._mark(AssertStmt(condition, message), line)
+        if self.check(TT.COMMA): self.advance(); message = self.parse_expression()
+        self.skip_newlines(); return self._mark(AssertStmt(condition, message), line)
+
+    def parse_guard(self):
+        line = self.current().line; self.advance()
+        condition = self.parse_expression(); self.skip_newlines()
+        self.expect(TT.INDENT); else_body = []
+        while not self.check(TT.DEDENT) and not self.check(TT.EOF):
+            self.skip_newlines()
+            if self.check(TT.DEDENT) or self.check(TT.EOF): break
+            else_body.append(self.parse_statement()); self.skip_newlines()
+        self.expect(TT.DEDENT)
+        return self._mark(GuardStmt(condition, else_body), line)
 
     def parse_expression(self): return self.parse_pipeline()
 
     def parse_pipeline(self):
-        left = self.parse_logical()
+        left = self.parse_is()
         if not self.check(TT.PIPE):
             if not (self.check(TT.NEWLINE) and self.peek().type == TT.PIPE): return left
         steps = []
@@ -723,40 +756,42 @@ class Parser:
         if not steps: return left
         return Pipeline(left, steps)
 
+    def parse_is(self):
+        left = self.parse_logical()
+        if self.check_keyword("is"):
+            self.advance()
+            type_tok = self.expect(TT.IDENT)
+            return IsCheck(left, type_tok.value)
+        return left
+
     def parse_logical(self):
         left = self.parse_comparison()
         while self.current().type == TT.KEYWORD and self.current().value in ("and", "or"):
-            op = self.advance().value
-            left = BinaryOp(left, op, self.parse_comparison())
+            op = self.advance().value; left = BinaryOp(left, op, self.parse_comparison())
         return _fold(left)
 
     def parse_comparison(self):
         left = self.parse_addition()
         cmp_types = {TT.EQ, TT.NEQ, TT.LT, TT.GT, TT.LTE, TT.GTE}
         while self.current().type in cmp_types:
-            op = self.advance().value
-            left = BinaryOp(left, op, self.parse_addition())
+            op = self.advance().value; left = BinaryOp(left, op, self.parse_addition())
         return _fold(left)
 
     def parse_addition(self):
         left = self.parse_multiply()
         while self.current().type in (TT.PLUS, TT.MINUS):
-            op = self.advance().value
-            left = BinaryOp(left, op, self.parse_multiply())
+            op = self.advance().value; left = BinaryOp(left, op, self.parse_multiply())
         return _fold(left)
 
     def parse_multiply(self):
         left = self.parse_unary()
         while self.current().type in (TT.STAR, TT.SLASH, TT.PERCENT):
-            op = self.advance().value
-            left = BinaryOp(left, op, self.parse_unary())
+            op = self.advance().value; left = BinaryOp(left, op, self.parse_unary())
         return _fold(left)
 
     def parse_unary(self):
-        if self.check_keyword("not"):
-            self.advance(); return _fold(UnaryOp("not", self.parse_unary()))
-        if self.check(TT.MINUS):
-            self.advance(); return _fold(UnaryOp("-", self.parse_unary()))
+        if self.check_keyword("not"): self.advance(); return _fold(UnaryOp("not", self.parse_unary()))
+        if self.check(TT.MINUS): self.advance(); return _fold(UnaryOp("-", self.parse_unary()))
         return self.parse_postfix()
 
     def parse_postfix(self):
@@ -764,6 +799,8 @@ class Parser:
         while True:
             if self.check(TT.DOT):
                 self.advance(); node = FieldAccess(node, self.expect(TT.IDENT).value)
+            elif self.check(TT.QMARK):
+                self.advance(); node = FieldAccess(node, self.expect(TT.IDENT).value, optional=True)
             elif self.check(TT.LBRACKET):
                 self.advance(); index = self.parse_expression()
                 self.expect(TT.RBRACKET); node = IndexAccess(node, index)
@@ -801,33 +838,40 @@ class Parser:
             self.advance()
             if self.check(TT.LPAREN): return Call(Identifier(tok.value), self.parse_args())
             return Identifier(tok.value)
-        raise ParseError(f"Неожиданный токен: {tok.type} {repr(tok.value)}", tok)
+        raise ParseError(f"Неожиданный токен: {tok.type} {repr(tok.value)}", tok, self.source)
 
     def parse_list(self):
         self.expect(TT.LBRACKET)
         if self.check(TT.RBRACKET): self.advance(); return ListLiteral([])
-        first = self.parse_expression()
-        if self.check_keyword("for"):
-            self.advance(); var = self.expect(TT.IDENT).value
+        elements = []; spreads = []; has_spread = False
+        if self.check(TT.SPREAD):
+            self.advance(); spreads.append(len(elements))
+            elements.append(self.parse_expression()); has_spread = True
+        else: elements.append(self.parse_expression())
+        if not has_spread and self.check_keyword("for"):
+            first = elements[0]; self.advance()
+            var = self.expect(TT.IDENT).value
             self.expect(TT.KEYWORD, "in"); iterable = self.parse_expression()
             condition = None
-            if self.check_keyword("if"):
-                self.advance(); condition = self.parse_expression()
+            if self.check_keyword("if"): self.advance(); condition = self.parse_expression()
             self.expect(TT.RBRACKET)
             return ListComprehension(first, var, iterable, condition)
-        elements = [first]
         while self.check(TT.COMMA):
             self.advance()
             if self.check(TT.RBRACKET): break
-            elements.append(self.parse_expression())
-        self.expect(TT.RBRACKET); return ListLiteral(elements)
+            if self.check(TT.SPREAD):
+                self.advance(); spreads.append(len(elements))
+                elements.append(self.parse_expression()); has_spread = True
+            else: elements.append(self.parse_expression())
+        self.expect(TT.RBRACKET)
+        return ListLiteral(elements, spreads=spreads if has_spread else None)
 
     def parse_table(self):
         self.expect(TT.LBRACE); self.skip_newlines(); pairs = []
         while not self.check(TT.RBRACE):
             self.skip_newlines()
-            key = self.expect(TT.IDENT).value
-            self.expect(TT.COLON); value = self.parse_expression()
+            key = self.expect(TT.IDENT).value; self.expect(TT.COLON)
+            value = self.parse_expression()
             pairs.append((key, value)); self.skip_newlines()
             if self.check(TT.COMMA): self.advance()
             self.skip_newlines()
@@ -850,8 +894,6 @@ class Environment:
         self.vars = {}; self.parent = parent
 
     def get(self, name):
-        v = self.vars.get(name)
-        if v is not None: return v
         if name in self.vars: return self.vars[name]
         if self.parent: return self.parent.get(name)
         raise CreamRuntimeError(f"Переменная '{name}' не определена", code=ErrorCode.UNDEFINED_VAR)
@@ -895,14 +937,16 @@ class ReturnSignal(Exception):
     def __init__(self, value): self.value = value
 
 class CreamRuntimeError(Exception):
-    def __init__(self, msg, code=None, line=None, call_stack=None):
-        self.code = code; self.line = line
+    def __init__(self, msg, code=None, line=None, call_stack=None, source=None):
+        self.code = code; self.line = line; self.source = source
         self.call_stack = call_stack or []
         parts = ["[Runtime Error]"]
         if code: parts.append(f"[{code}]")
         if line: parts.append(f"Line {line}:")
         parts.append(msg)
         full = " ".join(parts)
+        if source and line:
+            full += _format_snippet(source, line)
         if self.call_stack:
             chain = " -> ".join(str(s) for s in self.call_stack)
             full += f"\n  Call stack: {chain}"
@@ -920,6 +964,7 @@ class Interpreter:
         self.global_env = Environment()
         self.call_stack = []
         self.docs = {}
+        self._source = None
         self._profile_data = {}
         self._setup_builtins()
 
@@ -945,56 +990,53 @@ class Interpreter:
         import time as _time_mod
         import statistics as _statistics
 
-        env = self.global_env
-        cs  = self._cream_str
-        interp = self
+        env = self.global_env; cs = self._cream_str; interp = self
 
-        def _reg(name, doc_text):
-            interp.docs[name] = doc_text
+        def _reg(name, doc_text): interp.docs[name] = doc_text
 
         _reg("say", "say value - Prints value to output")
         _reg("input", "input prompt - Reads user input")
         _reg("length", "length collection - Returns length")
-        _reg("sum", "sum list - Returns sum of list")
+        _reg("sum", "sum list - Returns sum")
         _reg("min", "min list - Returns minimum")
         _reg("max", "max list - Returns maximum")
-        _reg("abs", "abs number - Returns absolute value")
-        _reg("round", "round number, decimals=0 - Rounds number")
-        _reg("number", "number value - Converts to number")
-        _reg("bool", "bool value - Converts to boolean")
-        _reg("range", "range start, end - Creates number list")
-        _reg("sort", "sort list - Returns sorted copy")
-        _reg("reverse", "reverse list - Returns reversed copy")
-        _reg("first", "first list - Returns first element")
-        _reg("last", "last list - Returns last element")
-        _reg("join", "join list, separator=', ' - Joins list")
+        _reg("abs", "abs number - Absolute value")
+        _reg("round", "round number, decimals=0 - Rounds")
+        _reg("number", "number value - Convert to number")
+        _reg("bool", "bool value - Convert to boolean")
+        _reg("range", "range start, end - Number list")
+        _reg("sort", "sort list - Sorted copy")
+        _reg("reverse", "reverse list - Reversed copy")
+        _reg("first", "first list - First element")
+        _reg("last", "last list - Last element")
+        _reg("join", "join list, sep=', ' - Join list")
         _reg("upper", "upper string - Uppercase")
         _reg("lower", "lower string - Lowercase")
         _reg("trim", "trim string - Trim whitespace")
-        _reg("split", "split string, separator=' ' - Split string")
-        _reg("contains", "contains collection, item - Check containment")
+        _reg("split", "split string, sep=' ' - Split")
+        _reg("contains", "contains collection, item - Containment check")
         _reg("type", "type value - Returns type name")
         _reg("help", "help name? - Shows help")
         _reg("pkg", "pkg op, args... - Package manager")
-        _reg("bench", "bench n, fn - Benchmarks fn n times, returns avg ms")
-        _reg("time", "time fn - Times single call, returns ms")
+        _reg("bench", "bench n, fn - Benchmark n iterations")
+        _reg("time", "time fn - Time single call")
         _reg("math", "math x, op, args... - Math operations")
         _reg("num", "num x, op - Number operations")
-        _reg("rand", "rand args... - Random operations")
+        _reg("rand", "rand args... - Random")
         _reg("stats", "stats list, op? - Statistics")
-        _reg("list", "list lst, op, args... - List operations")
-        _reg("table", "table t, op, args... - Table operations")
-        _reg("convert", "convert value, from, to - Unit conversion")
+        _reg("list", "list lst, op, args... - List ops")
+        _reg("table", "table t, op, args... - Table ops")
+        _reg("convert", "convert value, from, to - Units")
         _reg("date", "date op? - Date/time")
-        _reg("file", "file path, op, args... - File operations")
-        _reg("folder", "folder path, op, args... - Folder operations")
-        _reg("sys", "sys op, args... - System operations")
+        _reg("file", "file path, op, args... - Files")
+        _reg("folder", "folder path, op, args... - Folders")
+        _reg("sys", "sys op, args... - System")
         _reg("encode", "encode value, op, mode? - Encoding")
-        _reg("str_", "str_ value, op, args... - String operations")
+        _reg("str_", "str_ value, op, args... - Strings")
         _reg("regex", "regex pattern, text, op? - Regex")
-        _reg("text_", "text_ value, op, args... - Text operations")
-        _reg("print_", "print_ value, op, args? - Print operations")
-        _reg("net", "net url, op?, data? - HTTP operations")
+        _reg("text_", "text_ value, op, args... - Text")
+        _reg("print_", "print_ value, op, args? - Print")
+        _reg("net", "net url, op?, data? - HTTP")
 
         def cream_type(args):
             x = args[0]
@@ -1017,92 +1059,63 @@ class Interpreter:
                 names = sorted(interp.docs.keys())
                 print("Available builtins:")
                 for n in names:
-                    doc = interp.docs.get(n, "")
-                    brief = doc.split(" - ")[1] if " - " in doc else doc
+                    doc = interp.docs.get(n, ""); brief = doc.split(" - ")[1] if " - " in doc else doc
                     print(f"  {n:<14} {brief}")
                 return None
             name = cs(args[0])
-            if name in interp.docs:
-                print(interp.docs[name]); return interp.docs[name]
+            if name in interp.docs: print(interp.docs[name]); return interp.docs[name]
             val = None
             try: val = env.get(name)
             except: pass
-            if val and isinstance(val, CreamFunction) and val.doc:
-                print(f"action {name}: {val.doc}"); return val.doc
-            if val and isinstance(val, CreamStructType) and val.doc:
-                print(f"struct {name}: {val.doc}"); return val.doc
+            if val and isinstance(val, CreamFunction) and val.doc: print(f"action {name}: {val.doc}"); return val.doc
+            if val and isinstance(val, CreamStructType) and val.doc: print(f"struct {name}: {val.doc}"); return val.doc
             print(f"No documentation found for '{name}'"); return None
         env.set("help", _Builtin(cream_help, "help"))
 
         def cream_bench(args):
             import time as _t
-            if len(args) < 2:
-                raise CreamRuntimeError("bench: нужно bench(n, fn)", code=ErrorCode.ARITY_ERROR)
-            n = int(args[0]); fn = args[1]
-            times = []
+            if len(args) < 2: raise CreamRuntimeError("bench: нужно bench(n, fn)", code=ErrorCode.ARITY_ERROR)
+            n = int(args[0]); fn = args[1]; times = []
             for _ in range(n):
                 start = _t.perf_counter()
-                if callable(fn) and not isinstance(fn, (CreamFunction, CreamLambda)):
-                    fn([])
-                elif isinstance(fn, CreamFunction):
-                    local = Environment(fn.closure)
-                    interp.call_stack.append(fn.name)
-                    try:
-                        interp.exec_block(fn.body, local)
-                    except ReturnSignal:
-                        pass
-                    finally:
-                        interp.call_stack.pop()
+                if isinstance(fn, CreamFunction):
+                    local = Environment(fn.closure); interp.call_stack.append(fn.name)
+                    try: interp.exec_block(fn.body, local)
+                    except ReturnSignal: pass
+                    finally: interp.call_stack.pop()
                 elif isinstance(fn, CreamLambda):
-                    local = Environment(fn.closure)
-                    interp.eval_expr(fn.body, local)
-                elapsed = (_t.perf_counter() - start) * 1000
-                times.append(elapsed)
-            avg = sum(times) / len(times)
-            mn = min(times); mx = max(times)
-            print(f"bench: {n} iterations")
-            print(f"  avg: {avg:.4f} ms")
-            print(f"  min: {mn:.4f} ms")
-            print(f"  max: {mx:.4f} ms")
+                    local = Environment(fn.closure); interp.eval_expr(fn.body, local)
+                elif callable(fn): fn([])
+                elapsed = (_t.perf_counter() - start) * 1000; times.append(elapsed)
+            avg = sum(times) / len(times); mn = min(times); mx = max(times)
+            print(f"bench: {n} iterations, avg: {avg:.4f} ms, min: {mn:.4f} ms, max: {mx:.4f} ms")
             return {"avg": avg, "min": mn, "max": mx, "n": n}
         env.set("bench", _Builtin(cream_bench, "bench"))
 
         def cream_time_fn(args):
             import time as _t
-            if not args:
-                raise CreamRuntimeError("time: нужно time(fn)", code=ErrorCode.ARITY_ERROR)
-            fn = args[0]
-            start = _t.perf_counter()
-            result = None
-            if callable(fn) and not isinstance(fn, (CreamFunction, CreamLambda)):
-                result = fn([])
-            elif isinstance(fn, CreamFunction):
-                local = Environment(fn.closure)
-                interp.call_stack.append(fn.name)
-                try:
-                    interp.exec_block(fn.body, local)
-                except ReturnSignal as r:
-                    result = r.value
-                finally:
-                    interp.call_stack.pop()
+            if not args: raise CreamRuntimeError("time: нужно time(fn)", code=ErrorCode.ARITY_ERROR)
+            fn = args[0]; start = _t.perf_counter(); result = None
+            if isinstance(fn, CreamFunction):
+                local = Environment(fn.closure); interp.call_stack.append(fn.name)
+                try: interp.exec_block(fn.body, local)
+                except ReturnSignal as r: result = r.value
+                finally: interp.call_stack.pop()
             elif isinstance(fn, CreamLambda):
-                local = Environment(fn.closure)
-                result = interp.eval_expr(fn.body, local)
+                local = Environment(fn.closure); result = interp.eval_expr(fn.body, local)
+            elif callable(fn): result = fn([])
             elapsed = (_t.perf_counter() - start) * 1000
-            print(f"time: {elapsed:.4f} ms")
-            return elapsed
+            print(f"time: {elapsed:.4f} ms"); return elapsed
         env.set("time", _Builtin(cream_time_fn, "time"))
 
         def cream_pkg(args):
-            if not args:
-                raise CreamRuntimeError("pkg: нужна операция", code=ErrorCode.ARITY_ERROR)
+            if not args: raise CreamRuntimeError("pkg: нужна операция", code=ErrorCode.ARITY_ERROR)
             op = cs(args[0]); pkg_dir = interp._pkg_dir()
             if op == "list":
                 pkgs = []
                 if _os.path.isdir(pkg_dir):
                     for d in sorted(_os.listdir(pkg_dir)):
-                        p = _os.path.join(pkg_dir, d)
-                        if _os.path.isdir(p) or d.endswith('.cream'):
+                        if _os.path.isdir(_os.path.join(pkg_dir, d)) or d.endswith('.cream'):
                             pkgs.append(d.replace('.cream', ''))
                 if not pkgs: print("No packages installed")
                 else:
@@ -1110,35 +1123,28 @@ class Interpreter:
                     for p in pkgs: print(f"  {p}")
                 return pkgs
             if op == "install":
-                if len(args) < 2:
-                    raise CreamRuntimeError("pkg install: нужно имя пакета", code=ErrorCode.ARITY_ERROR)
-                name = cs(args[1]); pkg_path = _os.path.join(pkg_dir, name + ".cream")
-                if _os.path.exists(pkg_path):
-                    print(f"Package '{name}' already installed"); return True
+                if len(args) < 2: raise CreamRuntimeError("pkg install: нужно имя", code=ErrorCode.ARITY_ERROR)
+                name = cs(args[1]); p = _os.path.join(pkg_dir, name + ".cream")
+                if _os.path.exists(p): print(f"Package '{name}' already installed"); return True
                 content = f"-- Package: {name}\n"
                 if len(args) > 2 and _os.path.exists(cs(args[2])):
                     with open(cs(args[2]), 'r', encoding='utf-8') as f: content = f.read()
-                with open(pkg_path, 'w', encoding='utf-8') as f: f.write(content)
+                with open(p, 'w', encoding='utf-8') as f: f.write(content)
                 print(f"Installed package '{name}'"); return True
             if op == "remove":
-                if len(args) < 2:
-                    raise CreamRuntimeError("pkg remove: нужно имя пакета", code=ErrorCode.ARITY_ERROR)
-                name = cs(args[1]); pkg_path = _os.path.join(pkg_dir, name + ".cream")
-                if _os.path.exists(pkg_path):
-                    _os.remove(pkg_path); print(f"Removed package '{name}'"); return True
+                if len(args) < 2: raise CreamRuntimeError("pkg remove: нужно имя", code=ErrorCode.ARITY_ERROR)
+                name = cs(args[1]); p = _os.path.join(pkg_dir, name + ".cream")
+                if _os.path.exists(p): _os.remove(p); print(f"Removed package '{name}'"); return True
                 print(f"Package '{name}' not found"); return False
             if op == "info":
-                if len(args) < 2:
-                    raise CreamRuntimeError("pkg info: нужно имя пакета", code=ErrorCode.ARITY_ERROR)
-                name = cs(args[1]); pkg_path = _os.path.join(pkg_dir, name + ".cream")
-                if not _os.path.exists(pkg_path):
-                    print(f"Package '{name}' not found"); return None
-                size = _os.path.getsize(pkg_path)
-                with open(pkg_path, 'r', encoding='utf-8') as f: lines = f.read().split('\n')
+                if len(args) < 2: raise CreamRuntimeError("pkg info: нужно имя", code=ErrorCode.ARITY_ERROR)
+                name = cs(args[1]); p = _os.path.join(pkg_dir, name + ".cream")
+                if not _os.path.exists(p): print(f"Package '{name}' not found"); return None
+                size = _os.path.getsize(p)
+                with open(p, 'r', encoding='utf-8') as f: lines = f.read().split('\n')
                 print(f"Package: {name}, {size} bytes, {len(lines)} lines"); return {"name": name, "size": size}
             if op == "search":
-                if len(args) < 2:
-                    raise CreamRuntimeError("pkg search: нужно ключевое слово", code=ErrorCode.ARITY_ERROR)
+                if len(args) < 2: raise CreamRuntimeError("pkg search: нужно слово", code=ErrorCode.ARITY_ERROR)
                 keyword = cs(args[1]).lower(); found = []
                 if _os.path.isdir(pkg_dir):
                     for d in _os.listdir(pkg_dir):
@@ -1172,30 +1178,29 @@ class Interpreter:
         env.set("trim",    _Builtin(lambda args: str(args[0]).strip(), "trim"))
         env.set("split",   _Builtin(lambda args: str(args[0]).split(str(args[1]) if len(args) > 1 else " "), "split"))
         env.set("contains",_Builtin(lambda args: args[1] in args[0], "contains"))
-
-        env.set("PI",  _math.pi); env.set("E", _math.e); env.set("INF", _math.inf)
+        env.set("PI", _math.pi); env.set("E", _math.e); env.set("INF", _math.inf)
 
         def cream_math(args):
             x = args[0]
             if len(args) == 1: return x
             op = args[1]
-            if op == "sqrt":      return _math.sqrt(x)
-            if op == "pow":       return _math.pow(x, args[2])
-            if op == "log":       return _math.log(x, args[2]) if len(args) > 2 else _math.log(x)
-            if op == "log2":      return _math.log2(x)
-            if op == "log10":     return _math.log10(x)
-            if op == "sin":       return _math.sin(_math.radians(x))
-            if op == "cos":       return _math.cos(_math.radians(x))
-            if op == "tan":       return _math.tan(_math.radians(x))
-            if op == "asin":      return _math.degrees(_math.asin(x))
-            if op == "acos":      return _math.degrees(_math.acos(x))
-            if op == "atan":      return _math.degrees(_math.atan(x))
-            if op == "floor":     return _math.floor(x)
-            if op == "ceil":      return _math.ceil(x)
-            if op == "round":     return round(x, int(args[2]) if len(args) > 2 else 0)
-            if op == "abs":       return abs(x)
+            if op == "sqrt": return _math.sqrt(x)
+            if op == "pow":  return _math.pow(x, args[2])
+            if op == "log":  return _math.log(x, args[2]) if len(args) > 2 else _math.log(x)
+            if op == "log2": return _math.log2(x)
+            if op == "log10": return _math.log10(x)
+            if op == "sin":  return _math.sin(_math.radians(x))
+            if op == "cos":  return _math.cos(_math.radians(x))
+            if op == "tan":  return _math.tan(_math.radians(x))
+            if op == "asin": return _math.degrees(_math.asin(x))
+            if op == "acos": return _math.degrees(_math.acos(x))
+            if op == "atan": return _math.degrees(_math.atan(x))
+            if op == "floor": return _math.floor(x)
+            if op == "ceil": return _math.ceil(x)
+            if op == "round": return round(x, int(args[2]) if len(args) > 2 else 0)
+            if op == "abs": return abs(x)
             if op == "factorial": return _math.factorial(int(x))
-            if op == "gcd":       return _math.gcd(int(x), int(args[2]))
+            if op == "gcd": return _math.gcd(int(x), int(args[2]))
             if op == "lcm":
                 a, b = int(x), int(args[2]); return abs(a * b) // _math.gcd(a, b)
             if op == "prime":
@@ -1204,13 +1209,13 @@ class Interpreter:
                 for i in range(2, int(_math.sqrt(n)) + 1):
                     if n % i == 0: return False
                 return True
-            if op == "digits":   return [int(d) for d in str(abs(int(x)))]
-            if op == "binary":   return bin(int(x))[2:]
-            if op == "hex":      return hex(int(x))[2:]
-            if op == "octal":    return oct(int(x))[2:]
-            if op == "clamp":    return max(args[2], min(args[3], x))
-            if op == "sign":     return (1 if x > 0 else -1 if x < 0 else 0)
-            if op == "percent":  return (x / args[2]) * 100 if len(args) > 2 else x / 100
+            if op == "digits": return [int(d) for d in str(abs(int(x)))]
+            if op == "binary": return bin(int(x))[2:]
+            if op == "hex":    return hex(int(x))[2:]
+            if op == "octal":  return oct(int(x))[2:]
+            if op == "clamp":  return max(args[2], min(args[3], x))
+            if op == "sign":   return (1 if x > 0 else -1 if x < 0 else 0)
+            if op == "percent": return (x / args[2]) * 100 if len(args) > 2 else x / 100
             raise CreamRuntimeError(f"math: неизвестная операция '{op}'", code=ErrorCode.UNKNOWN_BUILTIN)
         env.set("math", _Builtin(cream_math, "math"))
 
@@ -1220,18 +1225,18 @@ class Interpreter:
                 try: return int(x) if '.' not in str(x) else float(x)
                 except: return 0
             op = args[1]
-            if op == "int":      return int(float(x))
-            if op == "float":    return float(x)
+            if op == "int": return int(float(x))
+            if op == "float": return float(x)
             if op == "is":
                 try: float(x); return True
                 except: return False
-            if op == "between":  return args[2] <= x <= args[3]
-            if op == "format":   return f"{x:.{int(args[2])}f}"
+            if op == "between": return args[2] <= x <= args[3]
+            if op == "format": return f"{x:.{int(args[2])}f}"
             if op == "positive": return x > 0
             if op == "negative": return x < 0
-            if op == "zero":     return x == 0
-            if op == "even":     return int(x) % 2 == 0
-            if op == "odd":      return int(x) % 2 != 0
+            if op == "zero": return x == 0
+            if op == "even": return int(x) % 2 == 0
+            if op == "odd": return int(x) % 2 != 0
             raise CreamRuntimeError(f"num: неизвестная операция '{op}'", code=ErrorCode.UNKNOWN_BUILTIN)
         env.set("num", _Builtin(cream_num, "num"))
 
@@ -1240,17 +1245,16 @@ class Interpreter:
             if len(args) == 1:
                 a = args[0]
                 if isinstance(a, str):
-                    if a == "uuid":
-                        import uuid; return str(uuid.uuid4())
-                    if a == "coin":  return _random.choice([True, False])
-                    if a == "dice":  return _random.randint(1, 6)
+                    if a == "uuid": import uuid; return str(uuid.uuid4())
+                    if a == "coin": return _random.choice([True, False])
+                    if a == "dice": return _random.randint(1, 6)
                 if isinstance(a, (int, float)): return _random.randint(0, int(a))
                 if isinstance(a, list): return _random.choice(a)
             if len(args) == 2:
                 op = args[0]
-                if op == "list":    return _random.choice(args[1])
+                if op == "list": return _random.choice(args[1])
                 if op == "shuffle": return _random.sample(args[1], len(args[1]))
-                if op == "dice":    return _random.randint(1, int(args[1]))
+                if op == "dice": return _random.randint(1, int(args[1]))
                 if isinstance(op, (int, float)): return _random.randint(int(op), int(args[1]))
             if len(args) == 3 and args[0] == "sample":
                 return _random.sample(args[1], int(args[2]))
@@ -1266,17 +1270,17 @@ class Interpreter:
                         "min": min(lst), "max": max(lst), "sum": sum(lst), "count": len(lst),
                         "range": max(lst) - min(lst)}
             op = args[1]
-            if op == "mean":     return _statistics.mean(lst)
-            if op == "median":   return _statistics.median(lst)
-            if op == "mode":     return _statistics.mode(lst)
-            if op == "std":      return _statistics.stdev(lst) if len(lst) > 1 else 0
+            if op == "mean": return _statistics.mean(lst)
+            if op == "median": return _statistics.median(lst)
+            if op == "mode": return _statistics.mode(lst)
+            if op == "std": return _statistics.stdev(lst) if len(lst) > 1 else 0
             if op == "variance": return _statistics.variance(lst) if len(lst) > 1 else 0
-            if op == "min":      return min(lst)
-            if op == "max":      return max(lst)
-            if op == "sum":      return sum(lst)
-            if op == "count":    return len(lst)
-            if op == "range":    return max(lst) - min(lst)
-            if op == "unique":   return list(dict.fromkeys(lst))
+            if op == "min": return min(lst)
+            if op == "max": return max(lst)
+            if op == "sum": return sum(lst)
+            if op == "count": return len(lst)
+            if op == "range": return max(lst) - min(lst)
+            if op == "unique": return list(dict.fromkeys(lst))
             if op == "freq":
                 freq = {}
                 for x in lst: freq[x] = freq.get(x, 0) + 1
@@ -1288,39 +1292,36 @@ class Interpreter:
             lst = list(args[0])
             if len(args) == 1: return lst
             op = args[1]
-            if op == "add":      lst.append(args[2]); return lst
+            if op == "add": lst.append(args[2]); return lst
             if op == "remove":
                 if args[2] in lst: lst.remove(args[2]); return lst
             if op == "pop":
                 i = int(args[2]) if len(args) > 2 else -1; lst.pop(i); return lst
-            if op == "insert":   lst.insert(int(args[2]), args[3]); return lst
-            if op == "has":      return args[2] in lst
-            if op == "index":    return lst.index(args[2]) if args[2] in lst else -1
-            if op == "count":    return lst.count(args[2])
-            if op == "slice":
-                a = int(args[2]); b = int(args[3]) if len(args) > 3 else len(lst); return lst[a:b]
+            if op == "insert": lst.insert(int(args[2]), args[3]); return lst
+            if op == "has": return args[2] in lst
+            if op == "index": return lst.index(args[2]) if args[2] in lst else -1
+            if op == "count": return lst.count(args[2])
+            if op == "slice": return lst[int(args[2]):int(args[3]) if len(args) > 3 else len(lst)]
             if op == "flat":
                 result = []
                 for item in lst:
                     if isinstance(item, list): result.extend(item)
                     else: result.append(item)
                 return result
-            if op == "zip":      return [[a, b] for a, b in zip(lst, args[2])]
-            if op == "chunk":
-                n = int(args[2]); return [lst[i:i+n] for i in range(0, len(lst), n)]
-            if op == "unique":   return list(dict.fromkeys(lst))
-            if op == "concat":   return lst + list(args[2])
-            if op == "reverse":  return list(reversed(lst))
-            if op == "sort":     return sorted(lst)
-            if op == "shuffle":  _random.shuffle(lst); return lst
-            if op == "sum":      return sum(lst)
-            if op == "min":      return min(lst)
-            if op == "max":      return max(lst)
-            if op == "first":    return lst[0] if lst else None
-            if op == "last":     return lst[-1] if lst else None
-            if op == "empty":    return len(lst) == 0
-            if op == "fill":
-                n = int(args[2]); val = args[3] if len(args) > 3 else 0; return [val] * n
+            if op == "zip": return [[a, b] for a, b in zip(lst, args[2])]
+            if op == "chunk": return [lst[i:i+int(args[2])] for i in range(0, len(lst), int(args[2]))]
+            if op == "unique": return list(dict.fromkeys(lst))
+            if op == "concat": return lst + list(args[2])
+            if op == "reverse": return list(reversed(lst))
+            if op == "sort": return sorted(lst)
+            if op == "shuffle": _random.shuffle(lst); return lst
+            if op == "sum": return sum(lst)
+            if op == "min": return min(lst)
+            if op == "max": return max(lst)
+            if op == "first": return lst[0] if lst else None
+            if op == "last": return lst[-1] if lst else None
+            if op == "empty": return len(lst) == 0
+            if op == "fill": return [args[3] if len(args) > 3 else 0] * int(args[2])
             raise CreamRuntimeError(f"list: неизвестная операция '{op}'", code=ErrorCode.UNKNOWN_BUILTIN)
         env.set("list", _Builtin(cream_list, "list"))
 
@@ -1328,16 +1329,16 @@ class Interpreter:
             t = dict(args[0]) if isinstance(args[0], dict) else {}
             if len(args) == 1: return t
             op = args[1]
-            if op == "get":      return t.get(args[2])
-            if op == "set":      t[args[2]] = args[3]; return t
-            if op == "has":      return args[2] in t
-            if op == "delete":   t.pop(args[2], None); return t
-            if op == "keys":     return list(t.keys())
-            if op == "values":   return list(t.values())
-            if op == "merge":    return {**t, **args[2]}
-            if op == "size":     return len(t)
-            if op == "empty":    return len(t) == 0
-            if op == "to_list":  return [[k, v] for k, v in t.items()]
+            if op == "get": return t.get(args[2])
+            if op == "set": t[args[2]] = args[3]; return t
+            if op == "has": return args[2] in t
+            if op == "delete": t.pop(args[2], None); return t
+            if op == "keys": return list(t.keys())
+            if op == "values": return list(t.values())
+            if op == "merge": return {**t, **args[2]}
+            if op == "size": return len(t)
+            if op == "empty": return len(t) == 0
+            if op == "to_list": return [[k, v] for k, v in t.items()]
             raise CreamRuntimeError(f"table: неизвестная операция '{op}'", code=ErrorCode.UNKNOWN_BUILTIN)
         env.set("table", _Builtin(cream_table, "table"))
 
@@ -1356,8 +1357,7 @@ class Interpreter:
                 ("mb","gb"): lambda v: v/1024, ("bytes","mb"): lambda v: v/(1024**2),
                 ("bytes","gb"): lambda v: v/(1024**3), ("deg","rad"): lambda v: _math.radians(v),
                 ("rad","deg"): lambda v: _math.degrees(v),
-                ("hours","min"): lambda v: v*60, ("min","sec"): lambda v: v*60,
-                ("hours","sec"): lambda v: v*3600,
+                ("hours","min"): lambda v: v*60, ("min","sec"): lambda v: v*60, ("hours","sec"): lambda v: v*3600,
             }
             fn = conv.get((from_, to_))
             if fn: return round(fn(x), 6)
@@ -1370,10 +1370,9 @@ class Interpreter:
                 return {"year": now.year, "month": now.month, "day": now.day,
                         "hour": now.hour, "minute": now.minute, "second": now.second}
             if args[0] == "timestamp": return int(now.timestamp())
-            if args[0] == "today":     return now.strftime("%Y-%m-%d")
-            if args[0] == "time":      return now.strftime("%H:%M:%S")
-            if args[0] == "format":
-                return now.strftime(str(args[1]) if len(args) > 1 else "%Y-%m-%d")
+            if args[0] == "today": return now.strftime("%Y-%m-%d")
+            if args[0] == "time": return now.strftime("%H:%M:%S")
+            if args[0] == "format": return now.strftime(str(args[1]) if len(args) > 1 else "%Y-%m-%d")
             return str(now)
         env.set("date", _Builtin(cream_date, "date"))
 
@@ -1389,11 +1388,11 @@ class Interpreter:
                 with open(path, 'a', encoding='utf-8') as f: f.write(cs(args[2])); return True
             if op == "delete":
                 if _os.path.exists(path): _os.remove(path); return True
-            if op == "exists":  return _os.path.exists(path)
-            if op == "size":    return _os.path.getsize(path) if _os.path.exists(path) else 0
-            if op == "copy":    _shutil.copy2(path, str(args[2])); return True
-            if op == "move":    _shutil.move(path, str(args[2])); return True
-            if op == "rename":  _os.rename(path, str(args[2])); return True
+            if op == "exists": return _os.path.exists(path)
+            if op == "size": return _os.path.getsize(path) if _os.path.exists(path) else 0
+            if op == "copy": _shutil.copy2(path, str(args[2])); return True
+            if op == "move": _shutil.move(path, str(args[2])); return True
+            if op == "rename": _os.rename(path, str(args[2])); return True
             if op == "lines":
                 with open(path, 'r', encoding='utf-8') as f: return [l.rstrip('\n') for l in f.readlines()]
             if op == "json":
@@ -1407,9 +1406,9 @@ class Interpreter:
                         for row in args[2]: writer.writerow(row)
                     return True
                 with open(path, 'r', encoding='utf-8') as f: return list(_csv.reader(f))
-            if op == "ext":  return _os.path.splitext(path)[1]
+            if op == "ext": return _os.path.splitext(path)[1]
             if op == "name": return _os.path.basename(path)
-            if op == "dir":  return _os.path.dirname(path)
+            if op == "dir": return _os.path.dirname(path)
             if op == "info":
                 stat = _os.stat(path)
                 return {"size": stat.st_size, "name": _os.path.basename(path),
@@ -1420,18 +1419,18 @@ class Interpreter:
         def cream_folder(args):
             path = str(args[0])
             if path == "current": return _os.getcwd()
-            if path == "home":    return _os.path.expanduser("~")
+            if path == "home": return _os.path.expanduser("~")
             if len(args) == 1: return _os.listdir(path) if _os.path.isdir(path) else []
             op = args[1]
-            if op == "create":  _os.makedirs(path, exist_ok=True); return True
-            if op == "delete":  _shutil.rmtree(path, ignore_errors=True); return True
-            if op == "exists":  return _os.path.isdir(path)
-            if op == "copy":    _shutil.copytree(path, str(args[2])); return True
-            if op == "move":    _shutil.move(path, str(args[2])); return True
+            if op == "create": _os.makedirs(path, exist_ok=True); return True
+            if op == "delete": _shutil.rmtree(path, ignore_errors=True); return True
+            if op == "exists": return _os.path.isdir(path)
+            if op == "copy": _shutil.copytree(path, str(args[2])); return True
+            if op == "move": _shutil.move(path, str(args[2])); return True
             if op == "find":
-                import glob as _glob
-                return _glob.glob(_os.path.join(path, str(args[2])), recursive=True)
-            if op == "files":   return [f for f in _os.listdir(path) if _os.path.isfile(_os.path.join(path, f))]
+                import glob as _gl
+                return _gl.glob(_os.path.join(path, str(args[2])), recursive=True)
+            if op == "files": return [f for f in _os.listdir(path) if _os.path.isfile(_os.path.join(path, f))]
             if op == "folders": return [f for f in _os.listdir(path) if _os.path.isdir(_os.path.join(path, f))]
             raise CreamRuntimeError(f"folder: неизвестная операция '{op}'", code=ErrorCode.UNKNOWN_BUILTIN)
         env.set("folder", _Builtin(cream_folder, "folder"))
@@ -1440,19 +1439,19 @@ class Interpreter:
             import sys as _sys
             if not args: return _sys.platform
             op = str(args[0])
-            if op == "os":       return _sys.platform
-            if op == "args":     return _sys.argv[1:]
-            if op == "exit":     _sys.exit(int(args[1]) if len(args) > 1 else 0)
+            if op == "os": return _sys.platform
+            if op == "args": return _sys.argv[1:]
+            if op == "exit": _sys.exit(int(args[1]) if len(args) > 1 else 0)
             if op == "run":
                 r = _subprocess.run(str(args[1]), shell=True, capture_output=True, text=True)
                 return {"output": r.stdout, "error": r.stderr, "code": r.returncode}
             if op == "env":
                 if len(args) > 2: _os.environ[str(args[1])] = str(args[2]); return True
                 return _os.environ.get(str(args[1]), "")
-            if op == "sleep":    _time_mod.sleep(float(args[1])); return None
-            if op == "time":     return int(_time_mod.time())
-            if op == "cwd":      return _os.getcwd()
-            if op == "cd":       _os.chdir(str(args[1])); return True
+            if op == "sleep": _time_mod.sleep(float(args[1])); return None
+            if op == "time": return int(_time_mod.time())
+            if op == "cwd": return _os.getcwd()
+            if op == "cd": _os.chdir(str(args[1])); return True
             if op == "cpu":
                 try: import multiprocessing; return multiprocessing.cpu_count()
                 except: return 1
@@ -1467,9 +1466,9 @@ class Interpreter:
             if op == "base64":
                 if mode in ("de","decode"): return _base64.b64decode(str(x)).decode('utf-8')
                 return _base64.b64encode(str(x).encode()).decode()
-            if op == "md5":    return _hashlib.md5(str(x).encode()).hexdigest()
+            if op == "md5": return _hashlib.md5(str(x).encode()).hexdigest()
             if op == "sha256": return _hashlib.sha256(str(x).encode()).hexdigest()
-            if op == "sha1":   return _hashlib.sha1(str(x).encode()).hexdigest()
+            if op == "sha1": return _hashlib.sha1(str(x).encode()).hexdigest()
             if op == "url":
                 from urllib.parse import quote, unquote
                 if mode in ("de","decode"): return unquote(str(x))
@@ -1485,48 +1484,47 @@ class Interpreter:
             x = str(args[0])
             if len(args) == 1: return x
             op = str(args[1])
-            if op == "upper":      return x.upper()
-            if op == "lower":      return x.lower()
-            if op == "title":      return x.title()
+            if op == "upper": return x.upper()
+            if op == "lower": return x.lower()
+            if op == "title": return x.title()
             if op == "capitalize": return x.capitalize()
             if op == "trim":
                 if len(args) > 2:
                     s = str(args[2])
-                    if s == "left":  return x.lstrip()
+                    if s == "left": return x.lstrip()
                     if s == "right": return x.rstrip()
                 return x.strip()
             if op == "replace": return x.replace(str(args[2]), str(args[3]) if len(args) > 3 else "")
-            if op == "remove":  return x.replace(str(args[2]), "")
-            if op == "split":   return x.split(str(args[2]) if len(args) > 2 else " ")
-            if op == "join":    return x.join(cs(i) for i in args[2])
+            if op == "remove": return x.replace(str(args[2]), "")
+            if op == "split": return x.split(str(args[2]) if len(args) > 2 else " ")
+            if op == "join": return x.join(cs(i) for i in args[2])
             if op == "contains": return str(args[2]) in x
-            if op == "starts":  return x.startswith(str(args[2]))
-            if op == "ends":    return x.endswith(str(args[2]))
-            if op == "count":   return x.count(str(args[2]))
-            if op == "index":   return x.find(str(args[2]))
-            if op == "slice":   return x[int(args[2]):int(args[3]) if len(args) > 3 else len(x)]
-            if op == "repeat":  return x * int(args[2])
+            if op == "starts": return x.startswith(str(args[2]))
+            if op == "ends": return x.endswith(str(args[2]))
+            if op == "count": return x.count(str(args[2]))
+            if op == "index": return x.find(str(args[2]))
+            if op == "slice": return x[int(args[2]):int(args[3]) if len(args) > 3 else len(x)]
+            if op == "repeat": return x * int(args[2])
             if op == "reverse": return x[::-1]
-            if op == "length":  return len(x)
-            if op == "words":   return x.split()
-            if op == "lines":   return x.splitlines()
-            if op == "chars":   return list(x)
-            if op == "is_num":  return x.replace('.','',1).replace('-','',1).isdigit()
+            if op == "length": return len(x)
+            if op == "words": return x.split()
+            if op == "lines": return x.splitlines()
+            if op == "chars": return list(x)
+            if op == "is_num": return x.replace('.','',1).replace('-','',1).isdigit()
             if op == "is_alpha": return x.isalpha()
             if op == "is_empty": return len(x.strip()) == 0
             if op == "pad":
                 n = int(args[2]); side = str(args[3]) if len(args) > 3 else "right"
                 char = str(args[4]) if len(args) > 4 else " "
-                if side == "left":  return x.rjust(n, char)
-                if side == "both":  return x.center(n, char)
+                if side == "left": return x.rjust(n, char)
+                if side == "both": return x.center(n, char)
                 return x.ljust(n, char)
             if op == "between":
                 a, b = str(args[2]), str(args[3])
                 start = x.find(a); end = x.find(b, start + len(a))
                 if start == -1 or end == -1: return ""
                 return x[start + len(a):end]
-            if op == "match":
-                m = _re.search(str(args[2]), x); return m.group(0) if m else ""
+            if op == "match": m = _re.search(str(args[2]), x); return m.group(0) if m else ""
             if op == "match_all": return _re.findall(str(args[2]), x)
             raise CreamRuntimeError(f"str: неизвестная операция '{op}'", code=ErrorCode.UNKNOWN_BUILTIN)
         env.set("str_", _Builtin(cream_str_fn, "str_"))
@@ -1537,13 +1535,12 @@ class Interpreter:
             if len(args) == 2:
                 m = _re.search(pat, text); return m.group(0) if m else ""
             op = str(args[2])
-            if op == "all":     return _re.findall(pat, text)
-            if op == "test":    return bool(_re.search(pat, text))
+            if op == "all": return _re.findall(pat, text)
+            if op == "test": return bool(_re.search(pat, text))
             if op == "replace": return _re.sub(pat, str(args[3]) if len(args) > 3 else "", text)
-            if op == "split":   return _re.split(pat, text)
-            if op == "groups":
-                m = _re.search(pat, text); return list(m.groups()) if m else []
-            if op == "count":   return len(_re.findall(pat, text))
+            if op == "split": return _re.split(pat, text)
+            if op == "groups": m = _re.search(pat, text); return list(m.groups()) if m else []
+            if op == "count": return len(_re.findall(pat, text))
             raise CreamRuntimeError(f"regex: неизвестная операция '{op}'", code=ErrorCode.UNKNOWN_BUILTIN)
         env.set("regex", _Builtin(cream_regex, "regex"))
 
@@ -1551,8 +1548,8 @@ class Interpreter:
             x = str(args[0])
             if len(args) == 1: return x
             op = str(args[1])
-            if op == "clean":   return _re.sub(r'[^\w\s]', '', x)
-            if op == "words":   return len(x.split())
+            if op == "clean": return _re.sub(r'[^\w\s]', '', x)
+            if op == "words": return len(x.split())
             if op == "truncate":
                 n = int(args[2]); suffix = str(args[3]) if len(args) > 3 else "..."
                 return x[:n] + suffix if len(x) > n else x
@@ -1576,7 +1573,7 @@ class Interpreter:
             if op == "similarity":
                 a, b = x, str(args[2])
                 if not a and not b: return 1.0
-                if not a or not b:  return 0.0
+                if not a or not b: return 0.0
                 dp = [[0]*(len(b)+1) for _ in range(len(a)+1)]
                 for i in range(len(a)+1): dp[i][0] = i
                 for j in range(len(b)+1): dp[0][j] = j
@@ -1586,32 +1583,28 @@ class Interpreter:
                 return round(1 - dp[len(a)][len(b)] / max(len(a), len(b)), 3)
             if op == "extract":
                 what = str(args[2])
-                if what == "emails":   return _re.findall(r'[\w.+-]+@[\w-]+\.[a-zA-Z]+', x)
-                if what == "urls":     return _re.findall(r'https?://\S+', x)
-                if what == "numbers":  return [float(n) if '.' in n else int(n) for n in _re.findall(r'-?\d+\.?\d*', x)]
+                if what == "emails": return _re.findall(r'[\w.+-]+@[\w-]+\.[a-zA-Z]+', x)
+                if what == "urls": return _re.findall(r'https?://\S+', x)
+                if what == "numbers": return [float(n) if '.' in n else int(n) for n in _re.findall(r'-?\d+\.?\d*', x)]
                 if what == "hashtags": return _re.findall(r'#\w+', x)
                 if what == "mentions": return _re.findall(r'@\w+', x)
             raise CreamRuntimeError(f"text: неизвестная операция '{op}'", code=ErrorCode.UNKNOWN_BUILTIN)
         env.set("text_", _Builtin(cream_text_fn, "text_"))
 
-        COLORS = {
-            "red":"\033[91m","green":"\033[92m","yellow":"\033[93m",
-            "blue":"\033[94m","cyan":"\033[96m","white":"\033[97m",
-            "gray":"\033[90m","reset":"\033[0m","bold":"\033[1m",
-        }
+        COLORS = {"red":"\033[91m","green":"\033[92m","yellow":"\033[93m",
+                  "blue":"\033[94m","cyan":"\033[96m","white":"\033[97m",
+                  "gray":"\033[90m","reset":"\033[0m","bold":"\033[1m"}
         def cream_print(args):
             x = args[0] if args else ""
             if x == "line":
                 n = int(args[1]) if len(args) > 1 else 40
-                ch = str(args[2]) if len(args) > 2 else "-"
-                print(ch * n); return None
+                ch = str(args[2]) if len(args) > 2 else "-"; print(ch * n); return None
             if x == "clear": print("\033[H\033[J", end=""); return None
             if len(args) == 1: print(cs(x)); return None
             op = str(args[1])
-            if op == "color":
-                c = COLORS.get(str(args[2]), ""); print(f"{c}{cs(x)}{COLORS['reset']}")
-            elif op == "bold":  print(f"\033[1m{cs(x)}\033[0m")
-            elif op == "end":   print(cs(x), end=str(args[2]))
+            if op == "color": c = COLORS.get(str(args[2]), ""); print(f"{c}{cs(x)}{COLORS['reset']}")
+            elif op == "bold": print(f"\033[1m{cs(x)}\033[0m")
+            elif op == "end": print(cs(x), end=str(args[2]))
             else: print(cs(x))
             return None
         env.set("print_", _Builtin(cream_print, "print_"))
@@ -1646,23 +1639,23 @@ class Interpreter:
                 try:
                     with _req.urlopen(req, timeout=10) as resp: return resp.read().decode("utf-8", errors="replace")
                 except _uerr.HTTPError as e: raise CreamRuntimeError(f"net: HTTP {e.code} - {e.reason}", code=ErrorCode.FILE_NOT_FOUND)
-                except _uerr.URLError as e:  raise CreamRuntimeError(f"net: error - {e.reason}", code=ErrorCode.FILE_NOT_FOUND)
+                except _uerr.URLError as e: raise CreamRuntimeError(f"net: error - {e.reason}", code=ErrorCode.FILE_NOT_FOUND)
 
-            if op == "get":     return do_request("GET")
+            if op == "get": return do_request("GET")
             if op == "json":
                 text = do_request("GET")
                 try: return _j.loads(text)
                 except: return text
-            if op == "post":     return do_request("POST", data=args[2] if len(args) > 2 else {})
+            if op == "post": return do_request("POST", data=args[2] if len(args) > 2 else {})
             if op == "post_json": return do_request("POST", data=args[2] if len(args) > 2 else {}, as_json=True)
-            if op == "put":      return do_request("PUT", data=args[2] if len(args) > 2 else {})
-            if op == "delete":   return do_request("DELETE")
+            if op == "put": return do_request("PUT", data=args[2] if len(args) > 2 else {})
+            if op == "delete": return do_request("DELETE")
             if op == "head":
                 req = _req.Request(url, method="HEAD"); req.add_header("User-Agent", "CreamLang/0.1")
                 try:
                     with _req.urlopen(req, timeout=10) as resp: return dict(resp.headers)
                 except _uerr.HTTPError as e: raise CreamRuntimeError(f"net: HTTP {e.code}", code=ErrorCode.FILE_NOT_FOUND)
-                except _uerr.URLError as e:  raise CreamRuntimeError(f"net: {e.reason}", code=ErrorCode.FILE_NOT_FOUND)
+                except _uerr.URLError as e: raise CreamRuntimeError(f"net: {e.reason}", code=ErrorCode.FILE_NOT_FOUND)
             if op == "status":
                 req = _req.Request(url); req.add_header("User-Agent", "CreamLang/0.1")
                 try:
@@ -1673,35 +1666,34 @@ class Interpreter:
                 path = str(args[2]) if len(args) > 2 else "download"
                 try: _req.urlretrieve(url, path); return True
                 except Exception as e: raise CreamRuntimeError(f"net: {e}", code=ErrorCode.FILE_NOT_FOUND)
-            if op == "headers":
-                return do_request("GET", headers=args[2] if len(args) > 2 else {})
+            if op == "headers": return do_request("GET", headers=args[2] if len(args) > 2 else {})
             raise CreamRuntimeError(f"net: неизвестная операция '{op}'", code=ErrorCode.UNKNOWN_BUILTIN)
         env.set("net", _Builtin(cream_net, "net"))
 
     def _cream_str(self, value):
-        if value is None:       return "empty"
-        if value is True:       return "yes"
-        if value is False:      return "no"
+        if value is None: return "empty"
+        if value is True: return "yes"
+        if value is False: return "no"
         if isinstance(value, list):
             return "[" + ", ".join(self._cream_str(x) for x in value) + "]"
         if isinstance(value, dict):
             items = ", ".join(f"{k}: {self._cream_str(v)}" for k, v in value.items())
             return "{" + items + "}"
-        if isinstance(value, float) and value == int(value):
-            return str(int(value))
+        if isinstance(value, float) and value == int(value): return str(int(value))
         return str(value)
 
     def _interpolate(self, s, env):
         import re as _re_local
         def replace(m):
             var_name = m.group(1)
-            try:    return self._cream_str(env.get(var_name))
+            try: return self._cream_str(env.get(var_name))
             except: return m.group(0)
         return _re_local.sub(r'\{(\w+)\}', replace, s)
 
     def _enrich_error(self, e, node):
         if not e.line and hasattr(node, 'line') and node.line: e.line = node.line
         if not e.call_stack and self.call_stack: e.call_stack = list(self.call_stack)
+        if not e.source and self._source: e.source = self._source
         return e
 
     def _collect_docs(self, node):
@@ -1711,6 +1703,20 @@ class Interpreter:
             elif isinstance(node, StructDef): name = node.name
             if name: self.docs[name] = node.doc
 
+    def _check_type(self, value, type_name):
+        TN = type_name.lower()
+        if TN == "number":   return isinstance(value, (int, float)) and not isinstance(value, bool)
+        if TN == "string":   return isinstance(value, str)
+        if TN == "bool":     return isinstance(value, bool)
+        if TN == "empty":    return value is None
+        if TN == "list":     return isinstance(value, list)
+        if TN == "table":    return isinstance(value, dict)
+        if TN == "action":   return isinstance(value, CreamFunction)
+        if TN == "lambda":   return isinstance(value, CreamLambda)
+        if TN == "struct":   return isinstance(value, CreamStruct)
+        if TN == "function": return isinstance(value, (CreamFunction, CreamLambda)) or callable(value)
+        return False
+
     def exec_block(self, stmts, env):
         for stmt in stmts:
             self.exec_stmt(stmt, env)
@@ -1718,21 +1724,19 @@ class Interpreter:
     def exec_stmt(self, node, env):
         try:
             self._exec_stmt_core(node, env)
+        except (BreakSignal, ContinueSignal, ReturnSignal):
+            raise
         except CreamRuntimeError as e:
             self._enrich_error(e, node); raise
-        except ReturnSignal:
-            raise
 
     def _exec_stmt_core(self, node, env):
-
         if isinstance(node, Assign):
             env.set(node.name, self.eval_expr(node.value, env))
 
         elif isinstance(node, AugAssign):
             current = env.get(node.name); right = self.eval_expr(node.value, env); op = node.op
             if op == "+":
-                if isinstance(current, str) or isinstance(right, str):
-                    current = self._cream_str(current) + self._cream_str(right)
+                if isinstance(current, str) or isinstance(right, str): current = self._cream_str(current) + self._cream_str(right)
                 else: current = current + right
             elif op == "-": current = current - right
             elif op == "*": current = current * right
@@ -1752,16 +1756,26 @@ class Interpreter:
             subject = self.eval_expr(node.subject, env)
             for case in node.cases:
                 if case.is_wildcard:
-                    self.exec_block(case.body, Environment(env)); break
+                    try: self.exec_block(case.body, Environment(env))
+                    except BreakSignal: pass
+                    break
                 if subject == self.eval_expr(case.pattern, env):
-                    self.exec_block(case.body, Environment(env)); break
+                    try: self.exec_block(case.body, Environment(env))
+                    except BreakSignal: pass
+                    break
 
         elif isinstance(node, AssertStmt):
             cond = self.eval_expr(node.condition, env)
             if not cond:
                 msg = "Assert failed"
                 if node.message: msg = self._cream_str(self.eval_expr(node.message, env))
-                raise CreamRuntimeError(msg, code=ErrorCode.ASSERT_ERROR, line=node.line)
+                raise CreamRuntimeError(msg, code=ErrorCode.ASSERT_ERROR, line=node.line, source=self._source)
+
+        elif isinstance(node, GuardStmt):
+            cond = self.eval_expr(node.condition, env)
+            if not cond:
+                self.exec_block(node.else_body, Environment(env))
+                raise ContinueSignal()
 
         elif isinstance(node, Say):
             print(self._cream_str(self.eval_expr(node.value, env)))
@@ -1782,19 +1796,25 @@ class Interpreter:
 
         elif isinstance(node, Repeat):
             count = int(self.eval_expr(node.count, env))
-            body = node.body
             for _ in range(count):
-                self.exec_block(body, Environment(env))
+                try: self.exec_block(node.body, Environment(env))
+                except BreakSignal: break
+                except ContinueSignal: continue
 
         elif isinstance(node, ForEach):
             iterable = self.eval_expr(node.iterable, env)
-            for item in iterable:
+            for idx, item in enumerate(iterable):
                 local = Environment(env); local.set(node.var, item)
-                self.exec_block(node.body, local)
+                if node.index_var: local.set(node.index_var, idx)
+                try: self.exec_block(node.body, local)
+                except BreakSignal: break
+                except ContinueSignal: continue
 
         elif isinstance(node, While):
             while self.eval_expr(node.condition, env):
-                self.exec_block(node.body, Environment(env))
+                try: self.exec_block(node.body, Environment(env))
+                except BreakSignal: break
+                except ContinueSignal: continue
 
         elif isinstance(node, ActionDef):
             self._collect_docs(node)
@@ -1832,81 +1852,77 @@ class Interpreter:
             self._enrich_error(e, node); raise
 
     def _eval_expr_core(self, node, env):
-
         if isinstance(node, NumberLiteral): return node.value
-        if isinstance(node, BoolLiteral):   return node.value
-        if isinstance(node, EmptyLiteral):  return None
-
-        if isinstance(node, StringLiteral):
-            return self._interpolate(node.value, env)
-
-        if isinstance(node, Identifier):
-            return env.get(node.name)
-
+        if isinstance(node, BoolLiteral): return node.value
+        if isinstance(node, EmptyLiteral): return None
+        if isinstance(node, StringLiteral): return self._interpolate(node.value, env)
+        if isinstance(node, Identifier): return env.get(node.name)
         if isinstance(node, ListLiteral):
+            if node.spreads:
+                result = []
+                for i, elem in enumerate(node.elements):
+                    if i in node.spreads:
+                        val = self.eval_expr(elem, env)
+                        if isinstance(val, list): result.extend(val)
+                        else: result.append(val)
+                    else: result.append(self.eval_expr(elem, env))
+                return result
             return [self.eval_expr(e, env) for e in node.elements]
-
         if isinstance(node, ListComprehension):
-            iterable = self.eval_expr(node.iterable, env)
-            result = []
+            iterable = self.eval_expr(node.iterable, env); result = []
             for item in iterable:
                 local = Environment(env); local.set(node.var, item)
                 if node.condition and not self.eval_expr(node.condition, local): continue
                 result.append(self.eval_expr(node.expr, local))
             return result
-
         if isinstance(node, TableLiteral):
             return {k: self.eval_expr(v, env) for k, v in node.pairs}
-
-        if isinstance(node, Lambda):
-            return CreamLambda(node.param, node.body, env)
-
+        if isinstance(node, Lambda): return CreamLambda(node.param, node.body, env)
+        if isinstance(node, IsCheck):
+            val = self.eval_expr(node.expr, env); return self._check_type(val, node.type_name)
         if isinstance(node, UnaryOp):
             val = self.eval_expr(node.operand, env)
             if node.op == "not": return not val
-            if node.op == "-":   return -val
-
-        if isinstance(node, BinaryOp):
-            return self.eval_binary(node, env)
-
+            if node.op == "-": return -val
+        if isinstance(node, BinaryOp): return self.eval_binary(node, env)
         if isinstance(node, FieldAccess):
             obj = self.eval_expr(node.obj, env)
+            if node.optional and obj is None: return None
             if isinstance(obj, CreamStruct):
                 if node.field in obj.fields: return obj.fields[node.field]
+                if node.optional: return None
                 raise CreamRuntimeError(f"Поле '{node.field}' не найдено в {obj.type_name}", code=ErrorCode.FIELD_NOT_FOUND)
-            if isinstance(obj, dict): return obj.get(node.field)
+            if isinstance(obj, dict):
+                val = obj.get(node.field)
+                if val is None and node.field not in obj:
+                    if node.optional: return None
+                return val
+            if node.optional: return None
             raise CreamRuntimeError(f"Нельзя получить поле у {type(obj).__name__}", code=ErrorCode.TYPE_ERROR)
-
         if isinstance(node, IndexAccess):
             obj = self.eval_expr(node.obj, env); index = self.eval_expr(node.index, env)
             try: return obj[int(index)]
             except (IndexError, KeyError, TypeError) as e:
                 raise CreamRuntimeError(f"Ошибка индекса: {e}", code=ErrorCode.INDEX_ERROR)
-
-        if isinstance(node, Call):
-            return self.eval_call(node, env)
-
-        if isinstance(node, Pipeline):
-            return self.eval_pipeline(node, env)
-
-        if isinstance(node, Wait):
-            return self.eval_expr(node.value, env)
-
+        if isinstance(node, Call): return self.eval_call(node, env)
+        if isinstance(node, Pipeline): return self.eval_pipeline(node, env)
+        if isinstance(node, Wait): return self.eval_expr(node.value, env)
         raise CreamRuntimeError(f"Неизвестный узел: {type(node).__name__}", code=ErrorCode.UNKNOWN_NODE)
 
     def eval_binary(self, node, env):
         op = node.op
-        if op in ("and", "or"):
+        if op == "and":
             left = self.eval_expr(node.left, env)
-            if op == "and": return left and self.eval_expr(node.right, env) if left else left
-            if op == "or":  return left if left else self.eval_expr(node.right, env)
+            return left and self.eval_expr(node.right, env) if left else left
+        if op == "or":
+            left = self.eval_expr(node.left, env)
+            return left if left else self.eval_expr(node.right, env)
         left = self.eval_expr(node.left, env); right = self.eval_expr(node.right, env)
         if op == "+":
-            if isinstance(left, str) or isinstance(right, str):
-                return self._cream_str(left) + self._cream_str(right)
+            if isinstance(left, str) or isinstance(right, str): return self._cream_str(left) + self._cream_str(right)
             return left + right
-        if op == "-":  return left - right
-        if op == "*":  return left * right
+        if op == "-": return left - right
+        if op == "*": return left * right
         if op == "/":
             if right == 0: raise CreamRuntimeError("Деление на ноль", code=ErrorCode.DIVISION_BY_ZERO)
             return left / right
@@ -1923,31 +1939,24 @@ class Interpreter:
 
     def eval_call(self, node, env):
         callee = self.eval_expr(node.callee, env)
-        args   = [self.eval_expr(a, env) for a in node.args]
-
-        if isinstance(callee, _Builtin):
-            return callee.fn(args)
-
+        args = [self.eval_expr(a, env) for a in node.args]
+        if isinstance(callee, _Builtin): return callee.fn(args)
         if callable(callee) and not isinstance(callee, (CreamFunction, CreamLambda, CreamStructType)):
             return callee(args)
-
         if isinstance(callee, CreamFunction):
-            self.call_stack.append(callee.name)
-            local = Environment(callee.closure)
+            self.call_stack.append(callee.name); local = Environment(callee.closure)
             for i, (param_name, param_default) in enumerate(callee.params):
                 if i < len(args): local.set(param_name, args[i])
                 elif param_default is not None: local.set(param_name, self.eval_expr(param_default, env))
-                else:
-                    self.call_stack.pop()
-                    raise CreamRuntimeError(f"Не передан аргумент '{param_name}' в {callee.name}()", code=ErrorCode.ARITY_ERROR)
+                else: self.call_stack.pop()
+                raise CreamRuntimeError(f"Не передан аргумент '{param_name}' в {callee.name}()", code=ErrorCode.ARITY_ERROR)
             try:
                 is_tail = (len(callee.body) == 1 and isinstance(callee.body[0], Return)
                            and isinstance(callee.body[0].value, Call))
                 if is_tail:
                     result = None
                     while True:
-                        try:
-                            self.exec_block(callee.body, local); break
+                        try: self.exec_block(callee.body, local); break
                         except ReturnSignal as r:
                             ret_node = callee.body[0].value
                             if isinstance(ret_node, Call):
@@ -1970,12 +1979,9 @@ class Interpreter:
                 self.call_stack.pop()
                 if not e.call_stack: e.call_stack = list(self.call_stack)
                 raise
-
         if isinstance(callee, CreamLambda):
-            local = Environment(callee.closure)
-            local.set(callee.param, args[0] if args else None)
+            local = Environment(callee.closure); local.set(callee.param, args[0] if args else None)
             return self.eval_expr(callee.body, local)
-
         if isinstance(callee, CreamStructType):
             fields = {}
             for i, (fname, ftype, fdefault) in enumerate(callee.fields):
@@ -1983,7 +1989,6 @@ class Interpreter:
                 elif fdefault is not None: fields[fname] = self.eval_expr(fdefault, env)
                 else: raise CreamRuntimeError(f"Не передано поле '{fname}'", code=ErrorCode.ARITY_ERROR)
             return CreamStruct(callee.name, fields)
-
         raise CreamRuntimeError(f"'{callee}' не является функцией", code=ErrorCode.NOT_CALLABLE)
 
     def eval_pipeline(self, node, env):
@@ -1991,26 +1996,24 @@ class Interpreter:
         for step in node.steps:
             if isinstance(step, Identifier):
                 name = step.name
-                if name == "sum":     value = sum(value)
-                elif name == "sort":  value = sorted(value)
+                if name == "sum": value = sum(value)
+                elif name == "sort": value = sorted(value)
                 elif name == "reverse": value = list(reversed(value))
                 elif name == "first": value = value[0] if value else None
-                elif name == "last":  value = value[-1] if value else None
+                elif name == "last": value = value[-1] if value else None
                 elif name == "length": value = len(value)
                 else: value = self._apply_fn(env.get(name), value, env)
             elif isinstance(step, Call):
                 fn_name = step.callee.name if isinstance(step.callee, Identifier) else None
-                fn_args = [self.eval_expr(a, env) for a in step.args]
-                fn = fn_args[0] if fn_args else None
-                if fn_name == "filter":   value = [x for x in value if self._apply_fn(fn, x, env)]
-                elif fn_name == "map":    value = [self._apply_fn(fn, x, env) for x in value]
-                elif fn_name == "sort":   value = sorted(value, key=lambda x: self._apply_fn(fn, x, env))
+                fn_args = [self.eval_expr(a, env) for a in step.args]; fn = fn_args[0] if fn_args else None
+                if fn_name == "filter": value = [x for x in value if self._apply_fn(fn, x, env)]
+                elif fn_name == "map": value = [self._apply_fn(fn, x, env) for x in value]
+                elif fn_name == "sort": value = sorted(value, key=lambda x: self._apply_fn(fn, x, env))
                 elif fn_name == "reduce":
                     from functools import reduce
                     value = reduce(lambda a, b: self._apply_fn2(fn, a, b, env), value)
                 else: value = self._apply_fn(self.eval_expr(step.callee, env), value, env)
-            else:
-                value = self._apply_fn(self.eval_expr(step, env), value, env)
+            else: value = self._apply_fn(self.eval_expr(step, env), value, env)
         return value
 
     def _apply_fn(self, fn, value, env):
@@ -2056,25 +2059,29 @@ class Interpreter:
         except Exception as e:
             raise CreamRuntimeError(f"import: не удалось прочитать '{full_path}' - {e}", code=ErrorCode.IMPORT_ERROR)
         tokens = Lexer(source).tokenize()
-        ast = Parser(tokens).parse()
+        ast = Parser(tokens, source=source).parse()
         self.exec_block(ast.body, env)
 
     def run(self, source, base_dir=None):
         import os as _os
         self._base_dir = base_dir or _os.getcwd()
+        self._source = source
         cache_key = _hashlib_std.md5(source.encode('utf-8')).hexdigest() if len(source) < 100000 else None
         if cache_key:
             cached_ast = _cache_get(_ast_cache, cache_key)
             if cached_ast:
-                self.exec_block(cached_ast.body, self.global_env); return
+                try: self.exec_block(cached_ast.body, self.global_env)
+                except (BreakSignal, ContinueSignal): pass
+                return
         tokens = Lexer(source).tokenize()
-        ast = Parser(tokens).parse()
+        ast = Parser(tokens, source=source).parse()
         if cache_key: _cache_set(_ast_cache, cache_key, ast)
-        self.exec_block(ast.body, self.global_env)
+        try: self.exec_block(ast.body, self.global_env)
+        except (BreakSignal, ContinueSignal): pass
 
     def generate_docs(self, source):
         tokens = Lexer(source).tokenize()
-        ast = Parser(tokens).parse()
+        ast = Parser(tokens, source=source).parse()
         output = []; current_doc = None
         for node in ast.body:
             if hasattr(node, 'doc') and node.doc: current_doc = node.doc
@@ -2120,8 +2127,7 @@ def run_test(path):
     import io, contextlib
     try:
         with open(path, 'r', encoding='utf-8') as f: source = f.read()
-        interp = Interpreter()
-        output_buf = io.StringIO()
+        interp = Interpreter(); output_buf = io.StringIO()
         with contextlib.redirect_stdout(output_buf): interp.run(source)
         result = output_buf.getvalue()
         if result: print(result)
@@ -2136,32 +2142,48 @@ def run_benchmark(path):
         with open(path, 'r', encoding='utf-8') as f: source = f.read()
         times = []
         for i in range(5):
-            interp = Interpreter()
-            start = _t.perf_counter()
-            interp.run(source)
-            elapsed = (_t.perf_counter() - start) * 1000
-            times.append(elapsed)
-            print(f"  Run {i+1}: {elapsed:.4f} ms")
-        avg = sum(times) / len(times)
-        mn = min(times); mx = max(times)
+            interp = Interpreter(); start = _t.perf_counter()
+            interp.run(source); elapsed = (_t.perf_counter() - start) * 1000
+            times.append(elapsed); print(f"  Run {i+1}: {elapsed:.4f} ms")
+        avg = sum(times) / len(times); mn = min(times); mx = max(times)
         print(f"\n  avg: {avg:.4f} ms | min: {mn:.4f} ms | max: {mx:.4f} ms")
     except FileNotFoundError: print(f"File not found: {path}")
     except Exception as e: print(f"Error: {e}")
+
+def _get_history_path():
+    import os as _os
+    d = _os.path.join(_os.path.expanduser("~"), ".cream")
+    _os.makedirs(d, exist_ok=True)
+    return _os.path.join(d, "history")
+
+def _load_history(path):
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return [line.rstrip('\n') for line in f.readlines()[-1000:]]
+    except: return []
+
+def _save_history(path, history):
+    try:
+        with open(path, 'w', encoding='utf-8') as f:
+            for line in history[-1000:]: f.write(line + '\n')
+    except: pass
 
 def repl():
     print("=" * 45)
     print("  Cream Language v0.1")
     print("  Type Cream code and press Enter.")
-    print("  Type 'exit' to quit.")
+    print("  Type 'exit' to quit. 'help' for docs.")
     print("=" * 45)
     print()
     interp = Interpreter(); buffer = []
+    hist_path = _get_history_path(); history = _load_history(hist_path)
     while True:
         try:
             prompt = "... " if buffer else "cream> "
             line = input(prompt)
+            history.append(line)
             if line.strip() in ("exit", "quit", "q"):
-                print("Goodbye!"); break
+                _save_history(hist_path, history); print("Goodbye!"); break
             if not line.strip():
                 if buffer:
                     code = "\n".join(buffer); buffer = []
@@ -2170,10 +2192,9 @@ def repl():
                 continue
             stripped = line.strip()
             keywords_with_block = ("if ", "else", "or if", "action ", "task ",
-                                   "repeat ", "while ", "for each", "try", "struct ", "match ")
+                                   "repeat ", "while ", "for each", "try", "struct ", "match ", "guard ")
             starts_block = any(stripped.startswith(kw) for kw in keywords_with_block)
-            if starts_block or buffer:
-                buffer.append(line)
+            if starts_block or buffer: buffer.append(line)
             else:
                 try: interp.run(line)
                 except (LexerError, ParseError, CreamRuntimeError) as e: print(f"{e}")
@@ -2181,15 +2202,16 @@ def repl():
             print(f"{e}"); buffer = []
         except KeyboardInterrupt:
             if buffer: buffer = []; print("\n(cancelled)")
-            else: print("\nGoodbye!"); break
-        except (EOFError, OSError): print("\nGoodbye!"); break
+            else: _save_history(hist_path, history); print("\nGoodbye!"); break
+        except (EOFError, OSError):
+            _save_history(hist_path, history); print("\nGoodbye!"); break
 
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
         cmd = sys.argv[1]
-        if cmd == "doc" and len(sys.argv) > 2:       run_doc(sys.argv[2])
-        elif cmd == "test" and len(sys.argv) > 2:     run_test(sys.argv[2])
+        if cmd == "doc" and len(sys.argv) > 2: run_doc(sys.argv[2])
+        elif cmd == "test" and len(sys.argv) > 2: run_test(sys.argv[2])
         elif cmd == "benchmark" and len(sys.argv) > 2: run_benchmark(sys.argv[2])
         elif cmd == "help":
             interp = Interpreter(); interp.global_env.get("help").fn([])
