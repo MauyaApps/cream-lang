@@ -29,8 +29,7 @@ KEYWORDS = {
     "struct", "yes", "no", "empty",
     "and", "or", "not", "say",
     "page", "block", "card", "button", "text", "animation",
-    "import",
-    "match", "case",
+    "import", "match", "case", "assert",
 }
 
 AUG_ASSIGN_OPS = {
@@ -56,6 +55,8 @@ class ErrorCode:
     NOT_CALLABLE     = "E012"
     PARSER_ERROR     = "E013"
     LEXER_ERROR      = "E014"
+    ASSERT_ERROR     = "E015"
+    PKG_ERROR        = "E016"
 
 class Token:
     def __init__(self, type_, value, line=0, col=0):
@@ -145,7 +146,6 @@ class Lexer:
         col_start = self.col; word = ""
         while self.current() and (self.current().isalnum() or self.current() == '_'):
             word += self.advance()
-
         for compound in ("or if", "for each", "on error"):
             first, second = compound.split(' ', 1)
             if word == first:
@@ -157,7 +157,6 @@ class Lexer:
                     return
                 else:
                     self.pos, self.col, self.line = saved
-
         if word == "_":
             self.tokens.append(Token(TT.IDENT, "_", self.line, col_start))
         elif word in ("yes", "no"):
@@ -173,7 +172,10 @@ class Lexer:
         indent_stack = [0]; result = []
         for line_num, line in enumerate(lines, 1):
             stripped = line.lstrip()
-            if not stripped or stripped.startswith('--'): continue
+            if not stripped or stripped.startswith('--'):
+                if stripped and stripped.startswith('///'):
+                    result.append(("DOC", stripped[3:].strip(), line_num))
+                continue
             if stripped.startswith('|'):
                 result.append(("LINE", stripped, line_num)); continue
             indent = len(line) - len(line.lstrip(' '))
@@ -199,7 +201,11 @@ class Lexer:
         all_tokens = []
         for item in pre:
             if isinstance(item, Token): all_tokens.append(item); continue
-            _, text, line_num = item
+            kind, text, line_num = item
+            if kind == "DOC":
+                all_tokens.append(Token("DOC_COMMENT", text, line_num, 1))
+                all_tokens.append(Token(TT.NEWLINE, '\n', line_num, len(text)))
+                continue
             self.source = text; self.pos = 0
             self.line = line_num; self.col = 1; self.tokens = []
             self._tokenize_line()
@@ -213,8 +219,7 @@ class Lexer:
             ch = self.current()
             if ch in (' ', '\t'): self.skip_spaces()
             elif ch == '-' and self.peek() == '-': break
-            elif ch == '"' and self.peek_str(3) == '"""':
-                self.read_multiline_string()
+            elif ch == '"' and self.peek_str(3) == '"""': self.read_multiline_string()
             elif ch == '"': self.read_string()
             elif ch.isdigit(): self.read_number()
             elif ch.isalpha() or ch == '_': self.read_ident()
@@ -261,6 +266,7 @@ class Lexer:
 
 class Node:
     line = 0
+    doc  = None
 
 class Program(Node):
     def __init__(self, body): self.body = body
@@ -338,6 +344,10 @@ class CaseClause(Node):
     def __init__(self, pattern, is_wildcard, body):
         self.pattern = pattern; self.is_wildcard = is_wildcard; self.body = body
 
+class AssertStmt(Node):
+    def __init__(self, condition, message=None):
+        self.condition = condition; self.message = message
+
 class Say(Node):
     def __init__(self, value): self.value = value
 
@@ -393,6 +403,7 @@ class ParseError(Exception):
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens; self.pos = 0
+        self._pending_doc = None
 
     def current(self): return self.tokens[self.pos]
     def peek(self, offset=1):
@@ -406,6 +417,12 @@ class Parser:
 
     def skip_newlines(self):
         while self.current().type == TT.NEWLINE: self.advance()
+
+    def skip_doc_and_newlines(self):
+        while self.current().type in (TT.NEWLINE, "DOC_COMMENT"):
+            if self.current().type == "DOC_COMMENT":
+                self._pending_doc = self.current().value
+            self.advance()
 
     def expect(self, type_, value=None):
         tok = self.current()
@@ -426,6 +443,9 @@ class Parser:
 
     def _mark(self, node, line):
         node.line = line
+        if self._pending_doc:
+            node.doc = self._pending_doc
+            self._pending_doc = None
         return node
 
     def parse_block(self):
@@ -441,6 +461,7 @@ class Parser:
         return stmts
 
     def parse_statement(self):
+        self.skip_doc_and_newlines()
         tok = self.current()
         if tok.type == TT.KEYWORD:
             kw = tok.value
@@ -457,6 +478,7 @@ class Parser:
             if kw == "struct":   return self.parse_struct()
             if kw == "import":   return self.parse_import()
             if kw == "match":    return self.parse_match()
+            if kw == "assert":   return self.parse_assert()
         if tok.type == TT.IDENT and self.peek().type == TT.ASSIGN:
             saved_pos = self.pos
             names = []
@@ -675,6 +697,17 @@ class Parser:
         self.expect(TT.DEDENT)
         return self._mark(MatchStmt(subject, cases), line)
 
+    def parse_assert(self):
+        line = self.current().line
+        self.advance()
+        condition = self.parse_expression()
+        message = None
+        if self.check(TT.COMMA):
+            self.advance()
+            message = self.parse_expression()
+        self.skip_newlines()
+        return self._mark(AssertStmt(condition, message), line)
+
     def parse_expression(self): return self.parse_pipeline()
 
     def parse_pipeline(self):
@@ -787,8 +820,6 @@ class Parser:
                 self.advance(); return Wait(self.parse_expression())
             if tok.value == "not":
                 self.advance(); return UnaryOp("not", self.parse_primary())
-            if tok.value == "match":
-                self.advance(); return self.parse_match()
             self.advance()
             if self.check(TT.LPAREN):
                 args = self.parse_args()
@@ -862,10 +893,7 @@ class Environment:
             return self.vars[name]
         if self.parent:
             return self.parent.get(name)
-        raise CreamRuntimeError(
-            f"Переменная '{name}' не определена",
-            code=ErrorCode.UNDEFINED_VAR
-        )
+        raise CreamRuntimeError(f"Переменная '{name}' не определена", code=ErrorCode.UNDEFINED_VAR)
 
     def set(self, name, value):
         self.vars[name] = value
@@ -879,54 +907,38 @@ class Environment:
             self.vars[name] = value
 
 class CreamFunction:
-    def __init__(self, name, params, body, closure):
-        self.name    = name
-        self.params  = params
-        self.body    = body
-        self.closure = closure
-
-    def __repr__(self):
-        return f"<action {self.name}>"
+    def __init__(self, name, params, body, closure, doc=None):
+        self.name = name; self.params = params
+        self.body = body; self.closure = closure; self.doc = doc
+    def __repr__(self): return f"<action {self.name}>"
 
 class CreamStruct:
     def __init__(self, type_name, fields):
-        self.type_name = type_name
-        self.fields    = fields
-
+        self.type_name = type_name; self.fields = fields
     def __repr__(self):
         items = ", ".join(f"{k}={repr(v)}" for k, v in self.fields.items())
         return f"{self.type_name}({items})"
 
 class CreamStructType:
-    def __init__(self, name, fields):
-        self.name   = name
-        self.fields = fields
-
-    def __repr__(self):
-        return f"<struct {self.name}>"
+    def __init__(self, name, fields, doc=None):
+        self.name = name; self.fields = fields; self.doc = doc
+    def __repr__(self): return f"<struct {self.name}>"
 
 class CreamLambda:
     def __init__(self, param, body, closure):
-        self.param   = param
-        self.body    = body
-        self.closure = closure
-
-    def __repr__(self):
-        return f"<lambda {self.param}>"
+        self.param = param; self.body = body; self.closure = closure
+    def __repr__(self): return f"<lambda {self.param}>"
 
 class ReturnSignal(Exception):
     def __init__(self, value): self.value = value
 
 class CreamRuntimeError(Exception):
     def __init__(self, msg, code=None, line=None, call_stack=None):
-        self.code = code
-        self.line = line
+        self.code = code; self.line = line
         self.call_stack = call_stack or []
         parts = ["[Runtime Error]"]
-        if code:
-            parts.append(f"[{code}]")
-        if line:
-            parts.append(f"Line {line}:")
+        if code: parts.append(f"[{code}]")
+        if line: parts.append(f"Line {line}:")
         parts.append(msg)
         full = " ".join(parts)
         if self.call_stack:
@@ -938,7 +950,14 @@ class Interpreter:
     def __init__(self):
         self.global_env = Environment()
         self.call_stack = []
+        self.docs = {}
         self._setup_builtins()
+
+    def _pkg_dir(self):
+        import os as _os
+        d = _os.path.join(_os.path.expanduser("~"), ".cream", "packages")
+        _os.makedirs(d, exist_ok=True)
+        return d
 
     def _setup_builtins(self):
         import math as _math
@@ -958,6 +977,201 @@ class Interpreter:
 
         env = self.global_env
         cs  = self._cream_str
+        interp = self
+
+        def _reg(name, doc_text):
+            interp.docs[name] = doc_text
+
+        _reg("say", "say value - Prints value to output")
+        _reg("input", "input prompt - Reads user input with optional prompt")
+        _reg("length", "length collection - Returns length of list or string")
+        _reg("sum", "sum list - Returns sum of all numbers in list")
+        _reg("min", "min list - Returns minimum value in list")
+        _reg("max", "max list - Returns maximum value in list")
+        _reg("abs", "abs number - Returns absolute value")
+        _reg("round", "round number, decimals=0 - Rounds number")
+        _reg("number", "number value - Converts value to number")
+        _reg("bool", "bool value - Converts value to boolean")
+        _reg("range", "range start, end - Creates list of numbers")
+        _reg("sort", "sort list - Returns sorted copy of list")
+        _reg("reverse", "reverse list - Returns reversed copy of list")
+        _reg("first", "first list - Returns first element")
+        _reg("last", "last list - Returns last element")
+        _reg("join", "join list, separator=', ' - Joins list into string")
+        _reg("upper", "upper string - Converts to uppercase")
+        _reg("lower", "lower string - Converts to lowercase")
+        _reg("trim", "trim string - Removes whitespace")
+        _reg("split", "split string, separator=' ' - Splits string into list")
+        _reg("contains", "contains collection, item - Checks if item exists")
+        _reg("type", "type value - Returns type name: number, string, bool, empty, list, table, action, lambda, struct")
+        _reg("help", "help name? - Shows help. help() lists all. help('fn') shows docs for fn")
+        _reg("pkg", "pkg op, args... - Package manager. Ops: install, remove, list, info, search")
+        _reg("math", "math x, op, args... - Math operations: sqrt, pow, log, sin, cos, floor, ceil, etc.")
+        _reg("num", "num x, op - Number operations: int, float, even, odd, between, format, etc.")
+        _reg("rand", "rand args... - Random: rand(), rand(100), rand('coin'), rand('uuid')")
+        _reg("stats", "stats list, op? - Statistics: mean, median, std, variance, freq")
+        _reg("list", "list lst, op, args... - List ops: add, remove, has, slice, chunk, unique, etc.")
+        _reg("table", "table t, op, args... - Table ops: get, set, has, keys, values, merge")
+        _reg("convert", "convert value, from, to - Unit conversion")
+        _reg("date", "date op? - Date/time: now, today, time, timestamp, format")
+        _reg("file", "file path, op, args... - File ops: read, write, append, json, csv, lines, etc.")
+        _reg("folder", "folder path, op, args... - Folder ops: create, delete, files, folders, find")
+        _reg("sys", "sys op, args... - System: os, args, run, env, sleep, time, cwd")
+        _reg("encode", "encode value, op, mode? - Encoding: base64, md5, sha256, url, json, hex")
+        _reg("str_", "str_ value, op, args... - String ops: upper, lower, replace, split, match, etc.")
+        _reg("regex", "regex pattern, text, op? - Regex: search, replace, test, groups")
+        _reg("text_", "text_ value, op, args... - Text: clean, slug, distance, similarity, extract")
+        _reg("print_", "print_ value, op, args? - Print: color, bold, line, clear")
+        _reg("net", "net url, op?, data? - HTTP: get, post, json, download, status")
+
+        def cream_type(args):
+            x = args[0]
+            if x is None: return "empty"
+            if isinstance(x, bool): return "bool"
+            if isinstance(x, int): return "number"
+            if isinstance(x, float): return "number"
+            if isinstance(x, str): return "string"
+            if isinstance(x, list): return "list"
+            if isinstance(x, dict): return "table"
+            if isinstance(x, CreamFunction): return "action"
+            if isinstance(x, CreamLambda): return "lambda"
+            if isinstance(x, CreamStruct): return "struct"
+            if isinstance(x, CreamStructType): return "struct_type"
+            if callable(x): return "builtin"
+            return "unknown"
+        env.set("type", cream_type)
+
+        def cream_help(args):
+            if not args:
+                names = sorted(interp.docs.keys())
+                print("Available builtins:")
+                for n in names:
+                    doc = interp.docs.get(n, "")
+                    brief = doc.split(" - ")[1] if " - " in doc else doc
+                    print(f"  {n:<14} {brief}")
+                return None
+            name = cs(args[0])
+            if name in interp.docs:
+                print(interp.docs[name])
+                return interp.docs[name]
+            val = None
+            try: val = env.get(name)
+            except: pass
+            if val and isinstance(val, CreamFunction) and val.doc:
+                print(f"action {name}: {val.doc}")
+                return val.doc
+            if val and isinstance(val, CreamStructType) and val.doc:
+                print(f"struct {name}: {val.doc}")
+                return val.doc
+            print(f"No documentation found for '{name}'")
+            return None
+        env.set("help", cream_help)
+
+        def cream_pkg(args):
+            if not args:
+                raise CreamRuntimeError("pkg: нужна операция", code=ErrorCode.ARITY_ERROR)
+            op = cs(args[0])
+            pkg_dir = interp._pkg_dir()
+
+            if op == "list":
+                pkgs = []
+                if _os.path.isdir(pkg_dir):
+                    for d in sorted(_os.listdir(pkg_dir)):
+                        p = _os.path.join(pkg_dir, d)
+                        if _os.path.isdir(p) or d.endswith('.cream'):
+                            pkgs.append(d.replace('.cream', ''))
+                if not pkgs:
+                    print("No packages installed")
+                else:
+                    print("Installed packages:")
+                    for p in pkgs:
+                        print(f"  {p}")
+                return pkgs
+
+            if op == "install":
+                if len(args) < 2:
+                    raise CreamRuntimeError("pkg install: нужно имя пакета", code=ErrorCode.ARITY_ERROR)
+                name = cs(args[1])
+                pkg_path = _os.path.join(pkg_dir, name + ".cream")
+                if _os.path.exists(pkg_path):
+                    print(f"Package '{name}' already installed")
+                    return True
+                if len(args) > 2:
+                    content = cs(args[2])
+                else:
+                    content = f"-- Package: {name}\n-- Installed by cream pkg\n"
+                    src = cs(args[2]) if len(args) > 2 else None
+                    if src and _os.path.exists(src):
+                        with open(src, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                with open(pkg_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                print(f"Installed package '{name}'")
+                return True
+
+            if op == "remove":
+                if len(args) < 2:
+                    raise CreamRuntimeError("pkg remove: нужно имя пакета", code=ErrorCode.ARITY_ERROR)
+                name = cs(args[1])
+                pkg_path = _os.path.join(pkg_dir, name + ".cream")
+                if _os.path.exists(pkg_path):
+                    _os.remove(pkg_path)
+                    print(f"Removed package '{name}'")
+                    return True
+                print(f"Package '{name}' not found")
+                return False
+
+            if op == "info":
+                if len(args) < 2:
+                    raise CreamRuntimeError("pkg info: нужно имя пакета", code=ErrorCode.ARITY_ERROR)
+                name = cs(args[1])
+                pkg_path = _os.path.join(pkg_dir, name + ".cream")
+                if not _os.path.exists(pkg_path):
+                    print(f"Package '{name}' not found")
+                    return None
+                size = _os.path.getsize(pkg_path)
+                with open(pkg_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                lines = content.split('\n')
+                doc_lines = []
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped.startswith('--') or stripped.startswith('///'):
+                        doc_lines.append(stripped.lstrip('-/ '))
+                    elif doc_lines:
+                        break
+                info = {
+                    "name": name,
+                    "size": size,
+                    "lines": len(lines),
+                    "description": " ".join(doc_lines) if doc_lines else "No description",
+                    "path": pkg_path,
+                }
+                print(f"Package: {name}")
+                print(f"  Size: {size} bytes, {len(lines)} lines")
+                print(f"  Description: {info['description']}")
+                print(f"  Path: {pkg_path}")
+                return info
+
+            if op == "search":
+                if len(args) < 2:
+                    raise CreamRuntimeError("pkg search: нужно ключевое слово", code=ErrorCode.ARITY_ERROR)
+                keyword = cs(args[1]).lower()
+                found = []
+                if _os.path.isdir(pkg_dir):
+                    for d in _os.listdir(pkg_dir):
+                        if keyword in d.lower():
+                            found.append(d.replace('.cream', ''))
+                if not found:
+                    print(f"No packages matching '{keyword}'")
+                else:
+                    print(f"Packages matching '{keyword}':")
+                    for p in found:
+                        print(f"  {p}")
+                return found
+
+            raise CreamRuntimeError(f"pkg: неизвестная операция '{op}'", code=ErrorCode.PKG_ERROR)
+        env.set("pkg", cream_pkg)
 
         env.set("say",     lambda args: print(cs(args[0])) or None)
         env.set("input",   lambda args: input(cs(args[0]) if args else ""))
@@ -1257,11 +1471,9 @@ class Interpreter:
                 import glob as _glob
                 return _glob.glob(_os.path.join(path, str(args[2])), recursive=True)
             if op == "files":
-                return [f for f in _os.listdir(path)
-                        if _os.path.isfile(_os.path.join(path, f))]
+                return [f for f in _os.listdir(path) if _os.path.isfile(_os.path.join(path, f))]
             if op == "folders":
-                return [f for f in _os.listdir(path)
-                        if _os.path.isdir(_os.path.join(path, f))]
+                return [f for f in _os.listdir(path) if _os.path.isdir(_os.path.join(path, f))]
             raise CreamRuntimeError(f"folder: неизвестная операция '{op}'", code=ErrorCode.UNKNOWN_BUILTIN)
         env.set("folder", cream_folder)
 
@@ -1352,7 +1564,7 @@ class Interpreter:
             if op == "is_alpha":   return x.isalpha()
             if op == "is_empty":   return len(x.strip()) == 0
             if op == "pad":
-                n    = int(args[2])
+                n = int(args[2])
                 side = str(args[3]) if len(args) > 3 else "right"
                 char = str(args[4]) if len(args) > 4 else " "
                 if side == "left":  return x.rjust(n, char)
@@ -1471,18 +1683,15 @@ class Interpreter:
             if not args:
                 raise CreamRuntimeError("net: нужен URL", code=ErrorCode.ARITY_ERROR)
             url = str(args[0])
-
             if url == "ip":
                 try:
                     with _req.urlopen("https://api.ipify.org", timeout=5) as r:
                         return r.read().decode()
                 except: return "unknown"
-
             if url == "encode":
                 params = args[1] if len(args) > 1 else {}
                 if isinstance(params, dict): return _parse.urlencode(params)
                 return _parse.quote(str(params))
-
             op = str(args[1]) if len(args) > 1 else "get"
 
             def do_request(method, data=None, headers=None, as_json=False):
@@ -1576,6 +1785,16 @@ class Interpreter:
             e.call_stack = list(self.call_stack)
         return e
 
+    def _collect_docs(self, node):
+        if hasattr(node, 'doc') and node.doc:
+            name = None
+            if isinstance(node, (ActionDef, TaskDef)):
+                name = node.name
+            elif isinstance(node, StructDef):
+                name = node.name
+            if name:
+                self.docs[name] = node.doc
+
     def exec_block(self, stmts, env):
         for stmt in stmts:
             self.exec_stmt(stmt, env)
@@ -1636,6 +1855,14 @@ class Interpreter:
                     matched = True
                     break
 
+        elif isinstance(node, AssertStmt):
+            cond = self.eval_expr(node.condition, env)
+            if not cond:
+                msg = "Assert failed"
+                if node.message:
+                    msg = self._cream_str(self.eval_expr(node.message, env))
+                raise CreamRuntimeError(msg, code=ErrorCode.ASSERT_ERROR, line=node.line)
+
         elif isinstance(node, Say):
             value = self.eval_expr(node.value, env)
             print(self._cream_str(value))
@@ -1679,15 +1906,18 @@ class Interpreter:
                 self.exec_block(node.body, local)
 
         elif isinstance(node, ActionDef):
-            fn = CreamFunction(node.name, node.params, node.body, env)
+            self._collect_docs(node)
+            fn = CreamFunction(node.name, node.params, node.body, env, doc=node.doc)
             env.set(node.name, fn)
 
         elif isinstance(node, TaskDef):
-            fn = CreamFunction(node.name, node.params, node.body, env)
+            self._collect_docs(node)
+            fn = CreamFunction(node.name, node.params, node.body, env, doc=node.doc)
             env.set(node.name, fn)
 
         elif isinstance(node, StructDef):
-            stype = CreamStructType(node.name, node.fields)
+            self._collect_docs(node)
+            stype = CreamStructType(node.name, node.fields, doc=node.doc)
             env.set(node.name, stype)
 
         elif isinstance(node, TryCatch):
@@ -1738,8 +1968,7 @@ class Interpreter:
                 local.set(node.var, item)
                 if node.condition:
                     cond = self.eval_expr(node.condition, local)
-                    if not cond:
-                        continue
+                    if not cond: continue
                 result.append(self.eval_expr(node.expr, local))
             return result
 
@@ -1950,7 +2179,11 @@ class Interpreter:
             full_path += '.cream'
 
         if not _os.path.exists(full_path):
-            raise CreamRuntimeError(f"import: файл не найден - '{full_path}'", code=ErrorCode.FILE_NOT_FOUND)
+            pkg_path = _os.path.join(self._pkg_dir(), _os.path.basename(full_path))
+            if _os.path.exists(pkg_path):
+                full_path = pkg_path
+            else:
+                raise CreamRuntimeError(f"import: файл не найден - '{full_path}'", code=ErrorCode.FILE_NOT_FOUND)
 
         if not hasattr(self, '_imported'):
             self._imported = set()
@@ -1976,6 +2209,35 @@ class Interpreter:
         ast    = Parser(tokens).parse()
         self.exec_block(ast.body, self.global_env)
 
+    def generate_docs(self, source):
+        tokens = Lexer(source).tokenize()
+        ast    = Parser(tokens).parse()
+        output = []
+        current_doc = None
+
+        for node in ast.body:
+            if hasattr(node, 'doc') and node.doc:
+                current_doc = node.doc
+            if isinstance(node, (ActionDef, TaskDef)):
+                params = ", ".join(p[0] for p in node.params)
+                kind = "action" if isinstance(node, ActionDef) else "task"
+                entry = f"## {kind} {node.name}({params})"
+                if current_doc:
+                    entry += f"\n\n{current_doc}"
+                output.append(entry)
+                current_doc = None
+            elif isinstance(node, StructDef):
+                fields = "\n".join(f"  - {f[0]}: {f[1]}" for f in node.fields)
+                entry = f"## struct {node.name}\n\n{fields}"
+                if current_doc:
+                    entry = f"## struct {node.name}\n\n{current_doc}\n\n{fields}"
+                output.append(entry)
+                current_doc = None
+            else:
+                current_doc = None
+
+        return "\n\n".join(output)
+
 def run_file(path):
     try:
         import os as _os
@@ -1987,6 +2249,50 @@ def run_file(path):
         print(f"File not found: {path}")
     except (LexerError, ParseError, CreamRuntimeError) as e:
         print(f"{e}")
+
+def run_doc(path):
+    import os as _os
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            source = f.read()
+        interp = Interpreter()
+        docs = interp.generate_docs(source)
+        if not docs:
+            print("No documentation found in file.")
+            return
+        out_path = path.replace('.cream', '_docs.md')
+        with open(out_path, 'w', encoding='utf-8') as f:
+            f.write(f"# Documentation: {_os.path.basename(path)}\n\n")
+            f.write(docs)
+            f.write("\n")
+        print(f"Documentation generated: {out_path}")
+        print()
+        print(docs)
+    except FileNotFoundError:
+        print(f"File not found: {path}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+def run_test(path):
+    import io
+    import contextlib
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            source = f.read()
+        interp = Interpreter()
+        output_buf = io.StringIO()
+        with contextlib.redirect_stdout(output_buf):
+            interp.run(source)
+        result = output_buf.getvalue()
+        if result:
+            print(result)
+        print(f"All tests in {path} passed.")
+    except FileNotFoundError:
+        print(f"File not found: {path}")
+    except CreamRuntimeError as e:
+        print(f"Test failed: {e}")
+    except Exception as e:
+        print(f"Error: {e}")
 
 def repl():
     print("=" * 45)
@@ -2048,7 +2354,17 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) > 1:
-        run_file(sys.argv[1])
+        cmd = sys.argv[1]
+        if cmd == "doc" and len(sys.argv) > 2:
+            run_doc(sys.argv[2])
+        elif cmd == "test" and len(sys.argv) > 2:
+            run_test(sys.argv[2])
+        elif cmd == "help":
+            Interpreter()
+            interp = Interpreter()
+            interp.global_env.get("help")([])
+        else:
+            run_file(cmd)
         sys.exit()
 
     repl()
