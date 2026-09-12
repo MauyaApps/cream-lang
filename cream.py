@@ -1,9 +1,3 @@
-# ============================================
-#   Cream Language — Interpreter v0.1
-#   Выполняет AST напрямую
-#   Включает лексер и парсер целиком
-# ============================================
-
 class TT:
     NUMBER   = "NUMBER";   STRING   = "STRING"
     BOOL     = "BOOL";     EMPTY    = "EMPTY"
@@ -294,7 +288,6 @@ class StructDef(Node):
         self.name = name; self.fields = fields
 
 class Import(Node):
-    """import "file.cream" — загрузить внешний .cream файл"""
     def __init__(self, path): self.path = path
 
 class ParseError(Exception):
@@ -657,7 +650,7 @@ class Parser:
         return TableLiteral(pairs)
 
     def parse_import(self):
-        self.advance()  
+        self.advance()
         path = self.expect(TT.STRING).value
         self.skip_newlines()
         return Import(path)
@@ -671,7 +664,6 @@ class Parser:
         return Program(body)
 
 class Environment:
-    """Хранит переменные. Поддерживает вложенные области видимости."""
     def __init__(self, parent=None):
         self.vars   = {}
         self.parent = parent
@@ -687,7 +679,6 @@ class Environment:
         self.vars[name] = value
 
     def assign(self, name, value):
-        """Присваивает в ту область видимости где переменная уже есть."""
         if name in self.vars:
             self.vars[name] = value
         elif self.parent:
@@ -696,10 +687,9 @@ class Environment:
             self.vars[name] = value
 
 class CreamFunction:
-    """Пользовательская функция (action)."""
     def __init__(self, name, params, body, closure):
         self.name    = name
-        self.params  = params  
+        self.params  = params
         self.body    = body
         self.closure = closure
 
@@ -707,25 +697,22 @@ class CreamFunction:
         return f"<action {self.name}>"
 
 class CreamStruct:
-    """Экземпляр структуры."""
     def __init__(self, type_name, fields):
         self.type_name = type_name
-        self.fields    = fields 
+        self.fields    = fields
 
     def __repr__(self):
         items = ", ".join(f"{k}={repr(v)}" for k, v in self.fields.items())
         return f"{self.type_name}({items})"
 
 class CreamStructType:
-    """Тип структуры (конструктор)."""
     def __init__(self, name, fields):
         self.name   = name
-        self.fields = fields 
+        self.fields = fields
     def __repr__(self):
         return f"<struct {self.name}>"
 
 class CreamLambda:
-    """Лямбда-функция: x → expr."""
     def __init__(self, param, body, closure):
         self.param   = param
         self.body    = body
@@ -986,7 +973,7 @@ class Interpreter:
             }
             fn = conv.get((from_, to_))
             if fn: return round(fn(x), 6)
-            raise CreamRuntimeError(f"convert: не знаю как {from_} → {to_}")
+            raise CreamRuntimeError(f"convert: не знаю как {from_} -> {to_}")
         env.set("convert", cream_convert)
 
         def cream_date(args):
@@ -1172,14 +1159,14 @@ class Interpreter:
                 start = x.find(a); end = x.find(b, start + len(a))
                 if start == -1 or end == -1: return ""
                 return x[start + len(a):end]
-            if op == "match":      
+            if op == "match":
                 m = _re.search(str(args[2]), x)
                 return m.group(0) if m else ""
             if op == "match_all":  return _re.findall(str(args[2]), x)
             raise CreamRuntimeError(f"str: неизвестная операция '{op}'")
         env.set("str_", cream_str_fn)
         env.set("str",  cream_str_fn)
-        
+
         def cream_regex(args):
             pat = str(args[0]); text = str(args[1]) if len(args) > 1 else ""
             if len(args) == 2:
@@ -1260,7 +1247,7 @@ class Interpreter:
             x = args[0] if args else ""
             if x == "line":
                 n = int(args[1]) if len(args) > 1 else 40
-                ch = str(args[2]) if len(args) > 2 else "─"
+                ch = str(args[2]) if len(args) > 2 else "-"
                 print(ch * n); return None
             if x == "clear": print("\033[H\033[J", end=""); return None
             if len(args) == 1: print(cs(x)); return None
@@ -1314,9 +1301,9 @@ class Interpreter:
                     with _req.urlopen(req, timeout=10) as resp:
                         return resp.read().decode("utf-8", errors="replace")
                 except _uerr.HTTPError as e:
-                    raise CreamRuntimeError(f"net: HTTP {e.code} — {e.reason}")
+                    raise CreamRuntimeError(f"net: HTTP {e.code} - {e.reason}")
                 except _uerr.URLError as e:
-                    raise CreamRuntimeError(f"net: ошибка — {e.reason}")
+                    raise CreamRuntimeError(f"net: error - {e.reason}")
 
             if op == "get":     return do_request("GET")
             if op == "json":
@@ -1358,7 +1345,6 @@ class Interpreter:
         env.set("net", cream_net)
 
     def _cream_str(self, value):
-        """Преобразует значение Cream в строку."""
         if value is None:       return "empty"
         if value is True:       return "yes"
         if value is False:      return "no"
@@ -1372,7 +1358,6 @@ class Interpreter:
         return str(value)
 
     def _interpolate(self, s, env):
-        """Интерполяция строк: "Hello, {name}" → "Hello, Ivan"."""
         import re
         def replace(m):
             var_name = m.group(1)
@@ -1549,7 +1534,7 @@ class Interpreter:
     def eval_call(self, node, env):
         callee = self.eval_expr(node.callee, env)
         args   = [self.eval_expr(a, env) for a in node.args]
-        
+
         if callable(callee) and not isinstance(callee, (CreamFunction, CreamLambda, CreamStructType)):
             return callee(args)
 
@@ -1567,7 +1552,7 @@ class Interpreter:
                 return None
             except ReturnSignal as r:
                 return r.value
-                
+
         if isinstance(callee, CreamLambda):
             local = Environment(callee.closure)
             local.set(callee.param, args[0] if args else None)
@@ -1626,7 +1611,6 @@ class Interpreter:
         return value
 
     def _apply_fn(self, fn, value, env):
-        """Применяет функцию к одному значению."""
         if isinstance(fn, CreamLambda):
             local = Environment(fn.closure)
             local.set(fn.param, value)
@@ -1644,7 +1628,6 @@ class Interpreter:
         raise CreamRuntimeError(f"Не является функцией: {fn}")
 
     def _apply_fn2(self, fn, a, b, env):
-        """Применяет функцию к двум значениям (для reduce)."""
         if isinstance(fn, CreamLambda):
             local = Environment(fn.closure)
             local.set(fn.param, a)
@@ -1652,14 +1635,6 @@ class Interpreter:
         raise CreamRuntimeError("reduce требует лямбду")
 
     def _exec_import(self, path, env):
-        """
-        import "file.cream"
-        import "utils/helpers.cream"
-
-        Загружает и выполняет внешний .cream файл.
-        Все его переменные и функции становятся доступны
-        в текущей области видимости.
-        """
         import os as _os
 
         if not _os.path.isabs(path):
@@ -1672,7 +1647,7 @@ class Interpreter:
             full_path += '.cream'
 
         if not _os.path.exists(full_path):
-            raise CreamRuntimeError(f"import: файл не найден — '{full_path}'")
+            raise CreamRuntimeError(f"import: файл не найден - '{full_path}'")
 
         if not hasattr(self, '_imported'):
             self._imported = set()
@@ -1685,7 +1660,7 @@ class Interpreter:
             with open(full_path, 'r', encoding='utf-8') as f:
                 source = f.read()
         except Exception as e:
-            raise CreamRuntimeError(f"import: не удалось прочитать '{full_path}' — {e}")
+            raise CreamRuntimeError(f"import: не удалось прочитать '{full_path}' - {e}")
 
         tokens = Lexer(source).tokenize()
         ast    = Parser(tokens).parse()
@@ -1706,15 +1681,15 @@ def run_file(path):
         interp = Interpreter()
         interp.run(source, base_dir=_os.path.dirname(_os.path.abspath(path)))
     except FileNotFoundError:
-        print(f"❌ Файл не найден: {path}")
+        print(f"Файл не найден: {path}")
     except (LexerError, ParseError, CreamRuntimeError) as e:
-        print(f"❌ {e}")
+        print(f"{e}")
 
 def repl():
     print("=" * 45)
     print("  Cream Language v0.1")
     print("  Type Cream code and press Enter.")
-    print("  Type \'exit\' to quit.")
+    print("  Type 'exit' to quit.")
     print("=" * 45)
     print()
     interp = Interpreter()
@@ -1734,7 +1709,7 @@ def repl():
                     try:
                         interp.run(code)
                     except (LexerError, ParseError, CreamRuntimeError) as e:
-                        print(f"❌ {e}")
+                        print(f"{e}")
                 continue
 
             stripped = line.strip()
@@ -1749,10 +1724,10 @@ def repl():
                 try:
                     interp.run(line)
                 except (LexerError, ParseError, CreamRuntimeError) as e:
-                    print(f"❌ {e}")
+                    print(f"{e}")
 
         except (LexerError, ParseError, CreamRuntimeError) as e:
-            print(f"❌ {e}")
+            print(f"{e}")
             buffer = []
         except KeyboardInterrupt:
             if buffer:
@@ -1761,7 +1736,7 @@ def repl():
             else:
                 print("\nGoodbye!")
                 break
-        except EOFError:
+        except (EOFError, OSError):  # FIX: добавлен OSError для Pyodide
             print("\nGoodbye!")
             break
 
@@ -1772,4 +1747,8 @@ if __name__ == "__main__":
         run_file(sys.argv[1])
         sys.exit()
 
-    repl()
+    try:
+        import js  # FIX: проверка Pyodide среды
+        print("REPL is not available in browser. Use run_file() instead.")
+    except ImportError:
+        repl()
