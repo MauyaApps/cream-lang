@@ -1,6 +1,3 @@
-// Cream Language — VS Code Extension
-// MauyaApps | creamlang.org
-
 const vscode = require('vscode');
 
 function activate(context) {
@@ -12,7 +9,6 @@ function activate(context) {
     statusBar.text = '$(code) Cream';
     statusBar.tooltip = 'Cream Language — creamlang.org';
 
-    // Show status bar when .cream file is open
     context.subscriptions.push(
         vscode.window.onDidChangeActiveTextEditor(editor => {
             if (editor && editor.document.languageId === 'cream') {
